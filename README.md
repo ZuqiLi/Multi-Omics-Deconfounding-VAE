@@ -1,5 +1,6 @@
 # Multi-view-Deconfounding-VAE
 - Project by Zuqi Li and Sonja Katz
+- Supervised by Prof. Kristel Van Steen, Prof. Gennady Roshchupkin and Prof. Vitor Martins Dos Santos
 
 ### Motivations
 - Integration of multi-view data: Deep Learning (e.g. Autoencoders)
