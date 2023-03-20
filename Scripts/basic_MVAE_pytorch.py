@@ -7,8 +7,15 @@ from keras import optimizers
 from keras.layers import BatchNormalization as BN, Concatenate, Dense, Input, Lambda,Dropout
 from keras.models import Model
 
-from models.common import sse, bce, mmd, sampling, kl_regu
 from keras.losses import mean_squared_error,binary_crossentropy
+
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torchvision import models
+
 import numpy as np
 import tensorflow as tf
 from tensorflow import set_random_seed
@@ -17,10 +24,8 @@ from tensorflow import set_random_seed
 def sse(true, pred):
     return K.sum(K.square(true - pred), axis=1)
 
-
 def cce(true, pred):
     return K.mean(K.sparse_categorical_crossentropy(true, pred, from_logits=True), axis=1)
-
 
 def bce(true, pred):
     return K.sum(K.binary_crossentropy(true, pred, from_logits=True), axis=1)
