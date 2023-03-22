@@ -5,13 +5,28 @@
 
 
 import os
+import numpy as np
+from sklearn.preprocessing import normalize
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.utils.data as data
 import torch.nn.functional as F
 import lightning as L
-from pytorch_lightning import Trainer
-import numpy as np
+
+
+path = '/usr/local/micapollo01/MIC/DATA/STAFF/zli1/MVDVAE/'
+
+np.random.seed(1234)
+torch.manual_seed(1234)
+L.seed_everything(1234)
+
+# Ensure that all operations are deterministic on GPU (if used) for reproducibility
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+print("Device:", device)
 
 
 def compute_kernel(x, y):
@@ -135,16 +150,33 @@ class XVAE(L.LightningModule):
 
    
 def main():
-    # Initializing Dataloader
-    train_set = MNIST('data/',download = True,train = True,transform=data_transform)
-    train_loader = Dataloader(train_set,batch_size=64)
-    val_set = MNIST('data/',download = True,train = False,transform=data_transform)
-    val_loader = Dataloader(val_set,batch_size=64)
+    
+    # Load the 2 input datasets
+    X1 = np.loadtxt(path + 'TCGA_mRNAs.csv', delimiter=",", skiprows=1)
+    X2 = np.loadtxt(path + 'TCGA_miRNAs.csv', delimiter=",", skiprows=1)
+    # Normalize datasets
+    X1 = normalize(X1, axis=0)
+    X2 = normalize(X2, axis=0)
+    # Select the most variable features
+    X1_var = np.argsort(np.var(X1, axis=0))[::-1]
+    X1 = X1[:, X1_var[:2000]]
+    X2_var = np.argsort(np.var(X2, axis=0))[::-1]
+    X2 = X2[:, X2_var[:1000]]
+    # Split into training and validation sets
+    n_samples = X1.shape[0]
+    indices = np.random.permutation(n_samples)
+    train_idx, val_idx = indices[:2500], indices[2500:]
+    X1_train, X1_val = X1[train_idx,:], X1[val_idx,:]
+    X2_train, X2_val = X2[train_idx,:], X2[val_idx,:]
+    
+    # Initialize Dataloader
+    train_loader = data.Dataloader(train_set, batch_size=64, shuffle=True, drop_last=False, num_workers=5)
+    val_loader = data.Dataloader(val_set, batch_size=64, shuffle=True, drop_last=False, num_workers=5)
 
     model = XVAE(x1_size, x2_size, ls, distance, bs, beta, save_model)
-    # Initializing Trainer and setting parameters
-    trainer = Trainer(accelerator="auto", devices=1, max_epochs=25)
-    # Using trainer to fit vae model to dataset
+    # Initialize Trainer and setting parameters
+    trainer = L.Trainer(accelerator="auto", devices=1, max_epochs=25)
+    # Use trainer to fit vae model to dataset
     trainer.fit(model, train_loader, val_loader)
     
     # Test best model on validation and test set
