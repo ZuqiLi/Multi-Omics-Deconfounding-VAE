@@ -55,11 +55,10 @@ def kld(mu, log_var):
 
     
 class XVAE(L.LightningModule):
-    def __init__(self, x1_size, x2_size, ls, distance, bs, beta, save_model):
+    def __init__(self, x1_size, x2_size, ls, distance, beta, save_model):
         super().__init__()
         self.ls = ls # latent space
         self.distance = distance
-        self.bs = bs # batch size
         self.beta = beta # weight for distance term in loss function
         self.save_model = save_model # true or false
         
@@ -68,10 +67,10 @@ class XVAE(L.LightningModule):
         self.encoder.x2_fc = nn.Linear(x2_size, 128)
         self.encoder.fuse = nn.Linear(128+128, 128)
         # embedding
-        self.embed.mu = nn.Linear(128, ls)
-        self.embed.log_var = nn.Linear(128, ls)
+        self.embed.mu = nn.Linear(128, self.ls)
+        self.embed.log_var = nn.Linear(128, self.ls)
         # decoder
-        self.decoder.sample = nn.Linear(ls, 128)
+        self.decoder.sample = nn.Linear(self.ls, 128)
         self.decoder.x1_fc = nn.Linear(128, x1_size)
         self.decoder.x2_fc = nn.Linear(128, x2_size)
         
@@ -120,7 +119,7 @@ class XVAE(L.LightningModule):
         x1_hat, x2_hat = decode(z)
 
         if self.distance == "mmd":
-            true_samples = torch.randn([self.bs, self.ls])
+            true_samples = torch.randn([x1.shape[0], self.ls])
             distance = mmd(true_samples, z)
         if self.distance == "kld":
             distance = kld(mu, log_var)         
@@ -148,7 +147,18 @@ class XVAE(L.LightningModule):
         self.log('test_loss', loss , on_step = True, on_epoch = True)
         return x_out,loss
 
+    
+class ConcatDataset(data.Dataset):
+    def __init__(self, *datasets):
+        self.datasets = datasets
+
+    def __getitem__(self, i):
+        return tuple(d[i] for d in self.datasets)
+
+    def __len__(self):
+        return min(len(d) for d in self.datasets)
    
+
 def main():
     
     # Load the 2 input datasets
@@ -170,10 +180,14 @@ def main():
     X2_train, X2_val = X2[train_idx,:], X2[val_idx,:]
     
     # Initialize Dataloader
-    train_loader = data.Dataloader(train_set, batch_size=64, shuffle=True, drop_last=False, num_workers=5)
-    val_loader = data.Dataloader(val_set, batch_size=64, shuffle=True, drop_last=False, num_workers=5)
+    train_loader = data.Dataloader(
+        ConcatDataset(X1_train, X2_train), 
+        batch_size=64, shuffle=True, drop_last=False, num_workers=5)
+    val_loader = data.Dataloader(
+        ConcatDataset(X1_val, X2_val), 
+        batch_size=64, shuffle=True, drop_last=False, num_workers=5)
 
-    model = XVAE(x1_size, x2_size, ls, distance, bs, beta, save_model)
+    model = XVAE(X1.shape[1], X2.shape[1], ls=64, distance='kld', beta=1, save_model=False)
     # Initialize Trainer and setting parameters
     trainer = L.Trainer(accelerator="auto", devices=1, max_epochs=25)
     # Use trainer to fit vae model to dataset
