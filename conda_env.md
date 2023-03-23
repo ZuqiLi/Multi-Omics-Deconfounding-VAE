@@ -1,0 +1,12 @@
+Required packages:
+- lightning (2.0.0)
+- numpy (1.23.5)
+- pip (23.0.1)
+- python (3.10.10)
+- torch (2.0.0)
+- pytorch (2.0.0)
+- pytorch-cuda (11.7)
+- pytorch-lightning (2.0.0)
+- scikit-learn (1.2.2)
+- torchvision (0.15.0)
+- tensorboard (2.12.0)
