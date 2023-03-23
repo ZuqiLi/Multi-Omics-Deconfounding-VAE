@@ -1,4 +1,4 @@
-### 1. Download data from TCGA
+### Step 1. Download data from TCGA
 - R package `TCGAbiolinks`
 - 3024 patients (after step 2) with 6 cancer types:
     - BRCA (951)
@@ -15,13 +15,13 @@
     - race: 'white', 'black or african amarican', 'asian', 'american indian or alaska native'
     - gender
 
-### 2. Removal criteria
+### Step 2. Removal criteria
 - Patients with NA or 'not reported' clinical data
-- 'american indian or alaska native'
+- race 'american indian or alaska native'
 - tumor stage x
 - mRNA or miRNA with 0 variance
 
-### 3. Encode clinical vairables and save datasets
+### Step 3. Encode clinical vairables and save datasets
 - mRNA dataset: 3024 patients x 58,456 mRNAs
 - miRNA dataset: 3024 patients x 1695 miRNAs
 - clinic dataset: 3024 patients x 6 variables
@@ -32,7 +32,7 @@
     5. gender: female(0), male(1)
     6. cancer type: BRCA(1), THCA(2), BLCA(3), LUSC(4), HNSC(5), KIRC(6)
     
-### 4. Pre-process the datasets
+### Step 4. Pre-process the datasets
 - mRNA dataset: 'TCGA_mRNAs_processed.csv'
     - L2 normalization for every mRNA
     - Take the 2000 mRNAs with highest variance
