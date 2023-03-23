@@ -63,16 +63,16 @@ class XVAE(L.LightningModule):
         self.save_model = save_model # true or false
         
         # encoder
-        self.encoder.x1_fc = nn.Linear(x1_size, 128)
-        self.encoder.x2_fc = nn.Linear(x2_size, 128)
-        self.encoder.fuse = nn.Linear(128+128, 128)
+        self.encoder_x1_fc = nn.Linear(x1_size, 128)
+        self.encoder_x2_fc = nn.Linear(x2_size, 128)
+        self.encoder_fuse = nn.Linear(128+128, 128)
         # embedding
-        self.embed.mu = nn.Linear(128, self.ls)
-        self.embed.log_var = nn.Linear(128, self.ls)
+        self.embed_mu = nn.Linear(128, self.ls)
+        self.embed_log_var = nn.Linear(128, self.ls)
         # decoder
-        self.decoder.sample = nn.Linear(self.ls, 128)
-        self.decoder.x1_fc = nn.Linear(128, x1_size)
-        self.decoder.x2_fc = nn.Linear(128, x2_size)
+        self.decoder_sample = nn.Linear(self.ls, 128)
+        self.decoder_x1_fc = nn.Linear(128, x1_size)
+        self.decoder_x2_fc = nn.Linear(128, x2_size)
         
     def sample_z(self, mu, log_var):
         #Reparametrization Trick to allow gradients to backpropagate from the 
@@ -83,20 +83,20 @@ class XVAE(L.LightningModule):
         return mu + sigma*z
     
     def encode(self, x1, x2):
-        x1 = F.relu(self.encoder.x1_fc(x1))
-        x2 = F.relu(self.encoder.x2_fc(x2))
+        x1 = F.relu(self.encoder_x1_fc(x1))
+        x2 = F.relu(self.encoder_x2_fc(x2))
 
         x = torch.cat((x1, x2), dim=1)
-        x = F.relu(self.encoder.fuse(x))
+        x = F.relu(self.encoder_fuse(x))
 
-        mu = self.embed.mu(x)
-        log_var = self.embed.log_var(x)
+        mu = self.embed_mu(x)
+        log_var = self.embed_log_var(x)
         return mu, log_var
     
     def decode(self, z):
-        x_hat = F.relu(self.decoder.sample(z))
-        x1_hat = F.relu(self.decoder.x1_fc(x_hat))
-        x2_hat = F.relu(self.decoder.x2_fc(x_hat))
+        x_hat = F.relu(self.decoder_sample(z))
+        x1_hat = F.relu(self.decoder_x1_fc(x_hat))
+        x2_hat = F.relu(self.decoder_x2_fc(x_hat))
         return x1_hat, x2_hat
         
     def forward(self, x1, x2):
@@ -116,7 +116,7 @@ class XVAE(L.LightningModule):
         x1, x2 = batch
         mu, log_var = self.encode(x1, x2)
         z = self.sample_z(mu, log_var)
-        x1_hat, x2_hat = decode(z)
+        x1_hat, x2_hat = self.decode(z)
 
         if self.distance == "mmd":
             true_samples = torch.randn([x1.shape[0], self.ls])
@@ -140,12 +140,12 @@ class XVAE(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         loss = self.compute_loss(batch)
         self.log('val_loss', loss , on_step = True, on_epoch = True)
-        return x_out,loss
+        return loss
 
     def test_step(self, batch, batch_idx):
         loss = self.compute_loss(batch)
         self.log('test_loss', loss , on_step = True, on_epoch = True)
-        return x_out,loss
+        return loss
 
     
 class ConcatDataset(data.Dataset):
@@ -162,16 +162,26 @@ class ConcatDataset(data.Dataset):
 def main():
     
     # Load the 2 input datasets
-    X1 = np.loadtxt(path + 'TCGA_mRNAs.csv', delimiter=",", skiprows=1)
-    X2 = np.loadtxt(path + 'TCGA_miRNAs.csv', delimiter=",", skiprows=1)
+    #X1 = np.loadtxt(path + 'TCGA_mRNAs.csv', delimiter=",", skiprows=1)
+    #X2 = np.loadtxt(path + 'TCGA_miRNAs.csv', delimiter=",", skiprows=1)
     # Normalize datasets
-    X1 = normalize(X1, axis=0)
-    X2 = normalize(X2, axis=0)
+    #X1 = normalize(X1, axis=0)
+    #X2 = normalize(X2, axis=0)
     # Select the most variable features
-    X1_var = np.argsort(np.var(X1, axis=0))[::-1]
-    X1 = X1[:, X1_var[:2000]]
-    X2_var = np.argsort(np.var(X2, axis=0))[::-1]
-    X2 = X2[:, X2_var[:1000]]
+    #X1_var = np.argsort(np.var(X1, axis=0))[::-1]
+    #X1 = X1[:, X1_var[:2000]]
+    #X2_var = np.argsort(np.var(X2, axis=0))[::-1]
+    #X2 = X2[:, X2_var[:1000]]
+    # Save pre-processed datasets
+    #np.savetxt(path + 'TCGA_mRNAs_processed.csv', X1, delimiter=",")
+    #np.savetxt(path + 'TCGA_miRNAs_processed.csv', X2, delimiter=",")
+
+    # Load the 2 input datasets
+    X1 = np.loadtxt(path + 'TCGA_mRNAs_processed.csv', delimiter=",")
+    X2 = np.loadtxt(path + 'TCGA_miRNAs_processed.csv', delimiter=",")
+    X1 = torch.from_numpy(X1).to(torch.float32)
+    X2 = torch.from_numpy(X2).to(torch.float32)
+    print(X1.shape, X2.shape)
     # Split into training and validation sets
     n_samples = X1.shape[0]
     indices = np.random.permutation(n_samples)
@@ -180,16 +190,16 @@ def main():
     X2_train, X2_val = X2[train_idx,:], X2[val_idx,:]
     
     # Initialize Dataloader
-    train_loader = data.Dataloader(
+    train_loader = data.DataLoader(
         ConcatDataset(X1_train, X2_train), 
         batch_size=64, shuffle=True, drop_last=False, num_workers=5)
-    val_loader = data.Dataloader(
+    val_loader = data.DataLoader(
         ConcatDataset(X1_val, X2_val), 
-        batch_size=64, shuffle=True, drop_last=False, num_workers=5)
+        batch_size=64, shuffle=False, drop_last=False, num_workers=5)
 
     model = XVAE(X1.shape[1], X2.shape[1], ls=64, distance='kld', beta=1, save_model=False)
     # Initialize Trainer and setting parameters
-    trainer = L.Trainer(accelerator="auto", devices=1, max_epochs=25)
+    trainer = L.Trainer(accelerator="auto", devices=1, max_epochs=25, log_every_n_steps=10)
     # Use trainer to fit vae model to dataset
     trainer.fit(model, train_loader, val_loader)
     
