@@ -30,7 +30,7 @@ source activate env_multiviewVAE
   - Simidjievski, Nikola, et al. "Variational autoencoders for cancer data integration: design principles and computational practice." Frontiers in genetics 10 (2019): 1205.
   - https://github.com/CancerAI-CL/IntegrativeVAEs
   - The X-shaped Variational Autoencoder (X-VAE) Architecture is overall recommended in this comparative study
-  ![image](https://user-images.githubusercontent.com/7692477/233080494-22abb000-8def-4ddb-b9a2-fa2a582392d2.png)
+  ![image](https://user-images.githubusercontent.com/7692477/233080494-22abb000-8def-4ddb-b9a2-fa2a582392d2.png | width=200)
 2. Reform the basic model
   - Implement in Pytorch Lightning (DONE)
   - Rearrange code (DONE)
@@ -41,9 +41,9 @@ source activate env_multiviewVAE
   - Strategy 2: Add a term in the loss function to iteratively optimize the clustering quality
 4. Correct for confounders (TO DO)
   - Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders
-  ![image](https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png)
+  ![image](https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png | width=200)
   - Strategy 2:  Add a term in loss function to minimize the association/similarity between the latent embedding and confounders
-  ![Picture1](https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png)
+  ![Picture1](https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png | width=200)
 
 
 
