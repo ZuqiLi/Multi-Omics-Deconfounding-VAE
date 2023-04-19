@@ -1,4 +1,5 @@
 ### Project overview
+---
 - Aim: develop a Multi-view deconfounding VAE (multi-view data integration + confounder correction)
 - Data: 
   - Rotterdam study
@@ -16,6 +17,7 @@
 - Google folder: https://drive.google.com/drive/folders/1GwZbMpVWW4xqdxmw_JRq9-DAR0WlnkE4
 
 ### Installation
+---
 ```bash
 ## cd Multi-view-Deconfounding-VAE
 conda env create -f environment.yml
@@ -23,6 +25,7 @@ source activate env_multiviewVAE
 ```
 
 ### Workplan
+---
 1. Select basic model (DONE)
   - Simidjievski, Nikola, et al. "Variational autoencoders for cancer data integration: design principles and computational practice." Frontiers in genetics 10 (2019): 1205.
   - https://github.com/CancerAI-CL/IntegrativeVAEs
@@ -40,7 +43,8 @@ source activate env_multiviewVAE
   - Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders
   ![image](https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png)
   - Strategy 2:  Add a term in loss function to minimize the association/similarity between the latent embedding and confounders
-  ![image](https://user-images.githubusercontent.com/7692477/226375544-dbda95dc-8f73-496c-9911-b41290491349.png)
+  ![Picture1](https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png)
+
 
 
 
