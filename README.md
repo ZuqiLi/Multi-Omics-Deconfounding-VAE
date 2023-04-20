@@ -1,5 +1,5 @@
 ## Project overview
-- - - -
+
 - Aim: develop a Multi-view deconfounding VAE (multi-view data integration + confounder correction)
 - Data: 
     - Rotterdam study
@@ -17,7 +17,7 @@
 - Google folder: https://drive.google.com/drive/folders/1GwZbMpVWW4xqdxmw_JRq9-DAR0WlnkE4
 
 ## Installation
-- - - -
+
 ```bash
 ## cd Multi-view-Deconfounding-VAE
 conda env create -f environment.yml
@@ -25,7 +25,7 @@ source activate env_multiviewVAE
 ```
 
 ## Workplan
-- - - -
+
 - [x] 1. Select basic model
     - Simidjievski, Nikola, et al. "Variational autoencoders for cancer data integration: design principles and computational practice." Frontiers in genetics 10 (2019): 1205.
     - https://github.com/CancerAI-CL/IntegrativeVAEs
@@ -37,11 +37,11 @@ source activate env_multiviewVAE
     - [x] Provide two latent loss functions (KL divergence and Maximum Mean Discrepancy)
     - [ ] Implement testing metrics
 - [ ] 3. Create a clustering model
-    - Strategy 1: Run K-means (or other clustering methods) on the latent space
-    - Strategy 2: Add a term in the loss function to iteratively optimize the clustering quality
+    - [ ] Strategy 1: Run K-means (or other clustering methods) on the latent space
+    - [ ] Strategy 2: Add a term in the loss function to iteratively optimize the clustering quality
 - [ ] 4. Correct for confounders
-    - Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders <img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
-    - Strategy 2: Add a term in loss function to minimize the association/similarity between the latent embedding and confounders <img src="https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png" width="500">
+    - [ ] Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders <img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
+    - [ ] Strategy 2: Add a term in loss function to minimize the association/similarity between the latent embedding and confounders <img src="https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png" width="500">
 
 
 
