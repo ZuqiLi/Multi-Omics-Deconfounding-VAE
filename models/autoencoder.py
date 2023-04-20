@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import pytorch_lightning as L
-from models.func import kld
+from models.func import kld, mmd
 
 def init_weights(layer):
     ''' Initialise layers for smoother training 
