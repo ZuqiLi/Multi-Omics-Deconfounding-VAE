@@ -29,8 +29,7 @@ source activate env_multiviewVAE
 - [x] 1. Select basic model
     - Simidjievski, Nikola, et al. "Variational autoencoders for cancer data integration: design principles and computational practice." Frontiers in genetics 10 (2019): 1205.
     - https://github.com/CancerAI-CL/IntegrativeVAEs
-    - The X-shaped Variational Autoencoder (X-VAE) Architecture is overall recommended in this comparative study
-    <img src="https://user-images.githubusercontent.com/7692477/233080494-22abb000-8def-4ddb-b9a2-fa2a582392d2.png" width="500">
+    - The X-shaped Variational Autoencoder (X-VAE) Architecture is overall recommended in this comparative study <img src="https://user-images.githubusercontent.com/7692477/233080494-22abb000-8def-4ddb-b9a2-fa2a582392d2.png" width="500">
 - [ ] 2. Reform the basic model
     - [x] Implement in Pytorch Lightning
     - [x] Rearrange code
