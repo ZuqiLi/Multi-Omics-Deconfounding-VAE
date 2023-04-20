@@ -1,5 +1,5 @@
 ### Project overview
----
+
 - Aim: develop a Multi-view deconfounding VAE (multi-view data integration + confounder correction)
 - Data: 
   - Rotterdam study
