@@ -1,6 +1,14 @@
 # Multi-view-Deconfounding-VAE
 - Project by Zuqi Li and Sonja Katz
-- Supervised by Prof. Kristel Van Steen, Prof. Gennady Roshchupkin and Prof. Vitor Martins Dos Santos
+- Supervised by Prof. Kristel Van Steen, Dr. Gennady Roshchupkin and Prof. Vitor Martins Dos Santos
+
+### Installation
+
+```bash
+## cd Multi-view-Deconfounding-VAE
+conda env create -f environment.yml
+source activate env_multiviewVAE
+```
 
 ### Motivations
 - Integration of multi-view data: Deep Learning (e.g. Autoencoders)

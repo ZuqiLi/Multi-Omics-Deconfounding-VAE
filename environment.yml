@@ -1,0 +1,17 @@
+name: env_multiviewVAE
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10.*
+  - numpy
+  - pip
+  - scikit-learn
+  - pandas
+  - pytorch
+  - pytorch-lightning
+  - torchvision
+  - tensorboard
+  ### Optional:
+  # - jupyter
+  # - jupyterlab
