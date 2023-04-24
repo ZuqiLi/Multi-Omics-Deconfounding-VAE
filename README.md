@@ -1,8 +1,22 @@
-# Multi-view-Deconfounding-VAE
-- Project by Zuqi Li and Sonja Katz
-- Supervised by Prof. Kristel Van Steen, Dr. Gennady Roshchupkin and Prof. Vitor Martins Dos Santos
+## Project overview
 
-### Installation
+- Aim: develop a Multi-view deconfounding VAE (multi-view data integration + confounder correction)
+- Data: 
+    - Rotterdam study
+        - 500 individuals
+        - Cardiovascular diseases
+        - Methylation
+        - 3D facial images
+    - Toy data (TCGA)
+        - 3024 patients
+        - 6 cancers
+        - 2000 most variable mRNAs
+        - 1000 most variable miRNAs
+- Conducted by Sonja Katz and Zuqi Li
+- Supervised by Prof. Kristel Van Steen, Dr. Gennady Roshchupkin and Prof. Vitor Martins Dos Santos
+- Google folder: https://drive.google.com/drive/folders/1GwZbMpVWW4xqdxmw_JRq9-DAR0WlnkE4
+
+## Installation
 
 ```bash
 ## cd Multi-view-Deconfounding-VAE
@@ -10,31 +24,25 @@ conda env create -f environment.yml
 source activate env_multiviewVAE
 ```
 
-### Motivations
-- Integration of multi-view data: Deep Learning (e.g. Autoencoders)
-- Problem during model training: confounder adjustment (linear correction not sufficient!)
-- Current research landscape: multitude of approaches, types of data used - do not necessarily overlap
-- Challenges: number of input modalities, removal of all confounders, removal of unknown confounders, …
+## Workplan
 
-### Data
-- Rotterdam study / Generation R
-- Pittsburg study (Zuqi's data)
-- Publicly available dataset (e.g. TCGA)
+- [x] 1. Select basic model
+    - Simidjievski, Nikola, et al. "Variational autoencoders for cancer data integration: design principles and computational practice." Frontiers in genetics 10 (2019): 1205.
+    - https://github.com/CancerAI-CL/IntegrativeVAEs
+    - The X-shaped Variational Autoencoder (X-VAE) Architecture is overall recommended in this comparative study <img src="https://user-images.githubusercontent.com/7692477/233080494-22abb000-8def-4ddb-b9a2-fa2a582392d2.png" width="500">
+- [ ] 2. Reform the basic model
+    - [x] Implement in Pytorch Lightning
+    - [x] Rearrange code
+    - [x] Provide two latent loss functions (KL divergence and Maximum Mean Discrepancy)
+    - [ ] Implement testing metrics
+- [ ] 3. Create a clustering model
+    - [ ] Strategy 1: Run K-means (or other clustering methods) on the latent space
+    - [ ] Strategy 2: Add a term in the loss function to iteratively optimize the clustering quality
+- [ ] 4. Correct for confounders
+    - [ ] Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders <img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
+    - [ ] Strategy 2: Add a term in loss function to minimize the association/similarity between the latent embedding and confounders <img src="https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png" width="500">
 
-### VAE strategies
-- Hira, Muta Tah, et al. "Integrated multi-omics analysis of ovarian cancer using variational autoencoders." Scientific reports 11.1 (2021): 6265.
-![image](https://user-images.githubusercontent.com/7692477/226374761-c6fdf0b5-5b72-4bb6-9a0f-a0de72abb250.png)
-- Ternes, Luke, et al. "A multi-encoder variational autoencoder controls multiple transformational features in single-cell image analysis." Communications biology 5.1 (2022): 255.
-![image](https://user-images.githubusercontent.com/7692477/226374966-bbf783b9-8620-43a1-a0ad-7822bf52d42d.png)
-- Yu, Tianwei. "AIME: Autoencoder-based integrative multi-omics data embedding that allows for confounder adjustments." PLoS Computational Biology 18.1 (2022): e1009826.
-![image](https://user-images.githubusercontent.com/7692477/226375038-4cb86525-993a-4f53-ab33-f4d98b01b633.png)
 
-### Deconfounding strategies
-- Lawry Aguila, Ana, et al. "Conditional VAEs for Confound Removal and Normative Modelling of Neurodegenerative Diseases." Medical Image Computing and Computer Assisted Intervention–MICCAI 2022: 25th International Conference, Singapore, September 18–22, 2022, Proceedings, Part I. Cham: Springer Nature Switzerland, 2022.\
-Yu, Tianwei. "AIME: Autoencoder-based integrative multi-omics data embedding that allows for confounder adjustments." PLoS Computational Biology 18.1 (2022): e1009826.
-![image](https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png)
-- Lau’s project on deconfounding autoencoder
-![image](https://user-images.githubusercontent.com/7692477/226375544-dbda95dc-8f73-496c-9911-b41290491349.png)
 
 
 
