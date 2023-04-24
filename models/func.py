@@ -27,7 +27,7 @@ def mmd(x, y):
         dim = a.shape[1] 
         tiled_a = a.view(a_size, 1, dim).expand(a_size, b_size, dim)
         tiled_b = b.view(1, b_size, dim).expand(a_size, b_size, dim)
-        kernel = torch.exp(-(tiled_a - tiled_b).pow(2).mean(2) / dim*1.0)
+        kernel = torch.exp(-(tiled_a - tiled_b).pow(2).mean(2) / dim)
         return kernel
 
     x_kernel = compute_kernel(x, x)
