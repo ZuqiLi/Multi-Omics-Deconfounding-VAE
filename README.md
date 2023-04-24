@@ -39,10 +39,8 @@ source activate env_multiviewVAE
     - [x] Strategy 1: Run K-means (or other clustering methods) on the latent space
     - [ ] Strategy 2: Add a term in the loss function to iteratively optimize the clustering quality
 - [ ] 4. Correct for confounders
-    - [ ] Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders
-    <img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
-    - [ ] Strategy 2: Add a term in loss function to minimize the association/similarity between the latent embedding and confounders
-    <img src="https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png" width="500">
+    - [ ] Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders\<img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
+    - [ ] Strategy 2: Add a term in loss function to minimize the association/similarity between the latent embedding and confounders\<img src="https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png" width="500">
 
 
 
