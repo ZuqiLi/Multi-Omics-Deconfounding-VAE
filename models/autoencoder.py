@@ -115,13 +115,25 @@ class XVAE(L.LightningModule):
             distance = mmd(true_samples, z)
         if self.distance == "kld":
             distance = kld(mu, log_var)         
-    
+
         recon_loss_criterion = nn.MSELoss(reduction="mean")  ##### CHECK "mean" here again! "sum" better?
         recon_loss_x1 = recon_loss_criterion(x1, x1_hat)
         recon_loss_x2 = recon_loss_criterion(x2, x2_hat)
         recon_loss = recon_loss_x1 + recon_loss_x2
         
         #vae_loss = recon_loss + self.beta * distance
+
+        ### Implement (very easy, monotonic) KL annealing - slowly start increasing beta value
+        if self.current_epoch <= 10:
+            self.beta = 0
+        elif (self.current_epoch > 10) & (self.current_epoch < 20):   #### possibly change these values
+            self.beta = 0.5
+        else:
+            self.beta = 1
+
+        print("\n")
+        print(self.beta)
+        print("\n")
         reg_loss = self.beta * distance
 
         return recon_loss, reg_loss, z

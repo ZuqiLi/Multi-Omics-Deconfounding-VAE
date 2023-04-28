@@ -89,11 +89,11 @@ ModelSummary(model, max_depth=1)
 
 # Initialize Trainer and setting parameters
 logger = TensorBoardLogger(save_dir=os.getcwd())
-trainer = L.Trainer(default_root_dir=os.getcwd(), accelerator="auto", devices=1, max_epochs=25, log_every_n_steps=10, logger=logger)
+trainer = L.Trainer(default_root_dir=os.getcwd(), accelerator="auto", devices=1, max_epochs=25, log_every_n_steps=10, logger=logger) ##fast_dev_run=True)#
 # Use trainer to fit vae model to dataset
 trainer.fit(model, train_loader, val_loader)
 # automatically auto-loads the best weights from the previous run
-trainer.test(dataloaders=test_loader)
+#trainer.test(dataloaders=test_loader)
 
 
 
