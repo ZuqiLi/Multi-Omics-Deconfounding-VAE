@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import pytorch_lightning as L
-from models.func import kld, mmd
+from models.func import kld, mmd, reconAcc_pearsonCorr, reconAcc_relativeError
 from models.clustering import kmeans, internal_metrics, external_metrics
 
 
@@ -121,32 +121,49 @@ class XVAE(L.LightningModule):
         recon_loss_x2 = recon_loss_criterion(x2, x2_hat)
         recon_loss = recon_loss_x1 + recon_loss_x2
         
-        vae_loss = recon_loss + self.beta * distance
-        return vae_loss, z
+        #vae_loss = recon_loss + self.beta * distance
+        reg_loss = self.beta * distance
+
+        return recon_loss, reg_loss, z
 
 
     def training_step(self, batch, batch_idx):
-        loss, z = self.compute_loss(batch)
+        recon_loss, reg_loss, z = self.compute_loss(batch)
+        loss = recon_loss + reg_loss
+        self.log('train_recon_loss', recon_loss, on_step = False, on_epoch = True, prog_bar = True)       
+        self.log('train_reg_loss', reg_loss, on_step = False, on_epoch = True, prog_bar = True)
         self.log('train_loss', loss, on_step = True, on_epoch = True, prog_bar = True)
         return loss
 
 
     def validation_step(self, batch, batch_idx):
-        loss, z = self.compute_loss(batch)
-        self.log('val_loss', loss , on_step = False, on_epoch = True)
+        recon_loss, reg_loss, z = self.compute_loss(batch)
+        loss = recon_loss + reg_loss
+        self.log('val_loss', loss, on_step = False, on_epoch = True)
         return loss
 
 
     def test_step(self, batch, batch_idx):
         ''' Do a final quality check once using the external test set; Add here our other QC metrices; Relative Error, R2, clustering metric '''
         batch, y = batch[:2], batch[2]
-        loss, z = self.compute_loss(batch)
+        recon_loss, reg_loss, z = self.compute_loss(batch)
+        loss = recon_loss + reg_loss
+        x_hat = self.forward(*batch)
+
         self.log('test_loss', loss , on_step = False, on_epoch = True)
-        self.test_step_outputs.append({"z": z, "y": y})
+        self.test_step_outputs.append({"z": z, "y": y, "recon": x_hat, "x": batch})
         return loss
     
 
     def on_test_epoch_end(self):
+        '''
+        Quality checks on Test set: 
+            - Clustering:
+                - ... 
+        '''
+        print("\n\n ON_TEST_EPOCH_END\n\n")
+
+        ''' Clustering '''
         LF = torch.cat([x["z"] for x in self.test_step_outputs], 0)
         Y = torch.cat([x["y"] for x in self.test_step_outputs], 0)
         LF = LF.detach().cpu().numpy() # convert (GPU or CPU) tensor to numpy for the clustering
@@ -154,11 +171,39 @@ class XVAE(L.LightningModule):
         clust = kmeans(LF, self.c)
         SS, DB = internal_metrics(LF, clust)
         ARI, NMI = external_metrics(clust, Y)
-        self.log("Silhouette score", SS, on_step = False, on_epoch = True)
-        self.log("DB index", DB, on_step = False, on_epoch = True)
-        self.log("Adjusted Rand Index", ARI, on_step = False, on_epoch = True)
-        self.log("Normalized Mutual Info", NMI, on_step = False, on_epoch = True)
-        return {"Silhouette score": SS, "DB index": DB, "Adjusted Rand Index": ARI, "Normalized Mutual Info": NMI}
+
+        ''' Reconstruction accuracy (Pearson correlation between reconstruction and input) '''
+        x1 = torch.cat([x["x"][0] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
+        x2 = torch.cat([x["x"][1] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
+        x1_hat = torch.cat([x["recon"][0] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
+        x2_hat = torch.cat([x["recon"][1] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
+        reconAcc_x1, reconAcc_x2 = reconAcc_pearsonCorr(x1, x1_hat, x2, x2_hat)
+
+        ''' Relative Error using L2 norm '''
+        relativeError = reconAcc_relativeError(x1, x1_hat,  x2, x2_hat)
+
+
+        ''' Summary Table for tensorboard'''
+        table = f"""
+            | Metric | Value  |
+            |----------|-----------|
+            | Silhouette score    | {SS:.2f} |
+            | DB index    | {DB:.2f} |
+            | Adjusted Rand Index   | {ARI:.2f} |
+            | Normalized Mutual Info   | {NMI:.2f} |
+            | Reconstruction accuracy X1 - Pearson correlation (mean+-std)   | {np.mean(reconAcc_x1):.2f}+-{np.std(reconAcc_x1):.2f} |
+            | Reconstruction accuracy X2 - Pearson correlation (mean+-std)   | {np.mean(reconAcc_x2):.2f}+-{np.std(reconAcc_x2):.2f} |
+            | Reconstruction accuracy - Relative error (L2 norm)   | {relativeError:.2f} |                                    
+        """
+        table = '\n'.join(l.strip() for l in table.splitlines())
+        self.logger.experiment.add_text("Results on test set", table,0)
+
+        ''' Visualise embedding '''
+        self.logger.experiment.add_embedding(LF, metadata=Y)
+
+        return 
+
+
 
 
 
@@ -290,7 +335,6 @@ class VAE(L.LightningModule):
         self.log("Adjusted Rand Index", ARI, on_step = False, on_epoch = True)
         self.log("Normalized Mutual Info", NMI, on_step = False, on_epoch = True)
         return {"Silhouette score": SS, "DB index": DB, "Adjusted Rand Index": ARI, "Normalized Mutual Info": NMI}
-
 
 
 class AE(L.LightningModule):
