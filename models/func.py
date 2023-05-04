@@ -1,6 +1,7 @@
 import os 
 import numpy as np 
 import torch
+from scipy import stats
 
 
 ''' 
@@ -35,3 +36,25 @@ def mmd(x, y):
     xy_kernel = compute_kernel(x, y)
     mmd = x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
     return mmd
+
+
+''' 
+QC scores
+'''
+
+def reconAcc_pearsonCorr(x1, x1_hat, x2, x2_hat):
+    ''' Reconstruction accuracy (Pearson correlation between reconstruction and input) '''
+    r2_x1 = []
+    for i in range(x1_hat.shape[1]):
+        r2_x1.append(stats.pearsonr(x1[:,i], x1_hat[:,i])[0])
+    r2_x2 = []
+    for i in range(x2_hat.shape[1]):
+        r2_x2.append(stats.pearsonr(x2[:,i], x2_hat[:,i])[0])
+    return r2_x1, r2_x2
+
+def reconAcc_relativeError(x1, x1_hat, x2, x2_hat):
+    ''' Reconstruction accuracy (relative error - L2 norm ratio) '''
+    numerator = np.linalg.norm(x1-x1_hat) +  np.linalg.norm(x2 - x2_hat)
+    denominator = np.linalg.norm(x1) +  np.linalg.norm(x2)
+    relativeError = numerator / denominator
+    return relativeError
