@@ -49,19 +49,6 @@ print(X1_test.shape, X2_test.shape, X1[test_idx,:].shape)
 print(len(train_idx),len(val_idx),len(test_idx))
 print("\n\n")
 
-'''
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score, normalized_mutual_info_score
-X1 = StandardScaler().fit_transform(np.concatenate((X1_test, X2_test), 1))
-clust = KMeans(n_clusters=6, random_state=0, n_init=10).fit(X1).labels_
-print(silhouette_score(X1, clust))
-print(davies_bouldin_score(X1, clust))
-print(adjusted_rand_score(Y_test, clust))
-print(normalized_mutual_info_score(Y_test, clust))
-exit()
-'''
-
 ''' Initialize Dataloader '''
 train_loader = data.DataLoader(
                     ConcatDataset(X1_train, X2_train), 
@@ -83,7 +70,7 @@ test_loader = data.DataLoader(
                     num_workers=5)
 
 
-model = XVAE(X1.shape[1], X2.shape[1], ls=64, distance='mmd', beta=1) #, save_model=False)
+model = XVAE(X1.shape[1], X2.shape[1], ls=64, distance='mmd', beta=1)
 #print(model)
 ModelSummary(model, max_depth=1)
 
