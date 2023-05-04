@@ -131,9 +131,6 @@ class XVAE(L.LightningModule):
         else:
             self.beta = 1
 
-        print("\n")
-        print(self.beta)
-        print("\n")
         reg_loss = self.beta * distance
 
         return recon_loss, reg_loss, z

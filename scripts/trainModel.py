@@ -93,7 +93,7 @@ trainer = L.Trainer(default_root_dir=os.getcwd(), accelerator="auto", devices=1,
 # Use trainer to fit vae model to dataset
 trainer.fit(model, train_loader, val_loader)
 # automatically auto-loads the best weights from the previous run
-#trainer.test(dataloaders=test_loader)
+trainer.test(dataloaders=test_loader)
 
 
 
