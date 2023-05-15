@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import pytorch_lightning as L
 from models.func import kld, mmd, reconAcc_pearsonCorr, reconAcc_relativeError
-from models.clustering import kmeans, internal_metrics, external_metrics
+from models.clustering import *
 import matplotlib.pyplot as plt
 
 
@@ -37,15 +37,17 @@ class cXVAE(L.LightningModule):
         
         ### encoder
         ### NOTE: hard coded reduction for now - change later!!
+        #self.encoder_x1_fc = nn.Sequential(nn.Linear(x1_size + self.cov_size, 128), 
         self.encoder_x1_fc = nn.Sequential(nn.Linear(x1_size, 128), 
                                            nn.LeakyReLU(), 
                                            nn.BatchNorm1d(128))   
+        #self.encoder_x2_fc = nn.Sequential(nn.Linear(x2_size + self.cov_size, 128), 
         self.encoder_x2_fc = nn.Sequential(nn.Linear(x2_size, 128), 
                                            nn.LeakyReLU(), 
                                            nn.BatchNorm1d(128))   
         ### fusing
-        self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128 + self.cov_size,     ### add covariates in this layer
-                                                    128), 
+        self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128 + self.cov_size, 128), ### add covariates in this layer
+        #self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128, 128), 
                                           nn.LeakyReLU(), 
                                           nn.BatchNorm1d(128))  
         
@@ -55,6 +57,7 @@ class cXVAE(L.LightningModule):
 
         ### decoder
         self.decoder_sample = nn.Sequential(nn.Linear(self.ls + self.cov_size, 128),
+        #self.decoder_sample = nn.Sequential(nn.Linear(self.ls, 128),
                                             nn.LeakyReLU())
         self.decoder_x1_fc = nn.Sequential(nn.Linear(128, x1_size),
                                            nn.Sigmoid())
@@ -76,10 +79,13 @@ class cXVAE(L.LightningModule):
 
 
     def encode(self, x1, x2, cov):
-        x1 = self.encoder_x1_fc(x1)
-        x2 = self.encoder_x2_fc(x2)
         cov = cov.reshape(-1, self.cov_size).to(torch.float32)
+        #x1 = self.encoder_x1_fc(torch.cat((x1, cov), dim=1))
+        x1 = self.encoder_x1_fc(x1)
+        #x2 = self.encoder_x2_fc(torch.cat((x2, cov), dim=1))
+        x2 = self.encoder_x2_fc(x2)
         x_fused = torch.cat((x1, x2, cov), dim=1)
+        #x_fused = torch.cat((x1, x2), dim=1)
         x_hidden = self.encoder_fuse(x_fused)
         mu = self.embed_mu(x_hidden)
         log_var = self.embed_log_var(x_hidden)
@@ -89,6 +95,7 @@ class cXVAE(L.LightningModule):
         cov = cov.reshape(-1, self.cov_size).to(torch.float32)
         z_cov = torch.cat((z, cov),dim=1)
         x_fused_hat = self.decoder_sample(z_cov)
+        #x_fused_hat = self.decoder_sample(z)
         x1_hat = self.decoder_x1_fc(x_fused_hat)
         x2_hat = self.decoder_x2_fc(x_fused_hat)
         return x1_hat, x2_hat
@@ -201,11 +208,15 @@ class cXVAE(L.LightningModule):
         corr_conf = [np.abs(np.corrcoef(LF.T, conf[:,i].T)[:-1,-1]) for i in range(conf.shape[1])]
         fig, ax = plt.subplots(figsize=(15,5))
         im = plt.imshow(corr_conf, cmap='hot', interpolation='nearest')
-        ax.set_yticks(np.arange(conf.shape[1]), labels=['Stage','Age','Race','Gender'])
+        labels = ['Stage','Age','Race','Gender']
+        labels_onehot = ['Age', 'Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Race1', 'Race2', 'Race3']
+        ax.set_yticks(np.arange(conf.shape[1]), labels=labels_onehot)
         ax.tick_params(axis='both', labelsize=10)
         plt.colorbar(im)
         self.logger.experiment.add_figure(tag="Correlation with covariates", figure=fig)
 
+        ''' Association between clustering and confounders '''
+        pvals = test_confounding(clust, conf)
 
         ''' Summary Table for tensorboard'''
         table = f"""
@@ -220,6 +231,8 @@ class cXVAE(L.LightningModule):
             | Reconstruction accuracy - Relative error (L2 norm)   | {relativeError:.2f} |                                    
         """
         table = '\n'.join(l.strip() for l in table.splitlines())
+        for i in range(conf.shape[1]):
+            table += f"| Association with {labels_onehot[i]}  | {pvals[i]:.2e} |\n"
         self.logger.experiment.add_text("Results on test set", table,0)
 
         ''' Visualise embedding '''        

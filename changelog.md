@@ -9,3 +9,10 @@
 [SK] - 28.04.2023:
 - added reconstruction accuracy metrices for scoring (table in tensorboard)
 - added embedding view in tensorboard
+
+[Zl] - 15.05.2023:
+- onehot encode stage and race, rescale age to [0,1]
+- shuffle and split confounders together with train/val/test sets
+- test both original version and deconfounding version of XVAE on the data
+- add associations between final clustering and covariates as metrics
+- try to add cov in the input layer instead of fused layer
