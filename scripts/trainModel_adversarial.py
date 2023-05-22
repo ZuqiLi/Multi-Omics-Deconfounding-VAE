@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.adversarial_XVAE import advNet, XVAE_preTrg, XVAE_w_advNet
+from models.adversarial_XVAE import advNet, XVAE_preTrg, XVAE_w_advNet, XVAE_w_advNet_pingpong
 from data.preprocess import ConcatDataset
 
 ''' 
@@ -98,14 +98,14 @@ trainer_xvae  = L.Trainer(default_root_dir=os.getcwd(),
                     devices=1, 
                     log_every_n_steps=10, 
                     logger=logger_xvae, 
-                    max_epochs=100,
-                    fast_dev_run=True) #
+                    max_epochs=1,
+                    fast_dev_run=False) #
 #trainer_xvae.fit(model_pre_XVAE, train_loader, val_loader)
 #trainer_xvae.test(dataloaders=test_loader)
 
 
 ''' Step 2: pre-train adv net '''
-ckpt_xvae_path = f"{os.getcwd()}/lightning_logs/advTraining/pre_XVAE/version_0/checkpoints"
+ckpt_xvae_path = f"{os.getcwd()}/lightning_logs/advTraining/pre_XVAE/version_1/checkpoints"
 ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
 
 model_pre_advNet = advNet(PATH_xvae_ckpt=ckpt_xvae_file,
@@ -118,25 +118,47 @@ trainer_advNet  = L.Trainer(default_root_dir=os.getcwd(),
                     devices=1, 
                     log_every_n_steps=10, 
                     logger=logger_advNet, 
-                    max_epochs=100,
-                    fast_dev_run=True) #
+                    max_epochs=1,
+                    fast_dev_run=False) #
 #trainer_advNet.fit(model_pre_advNet, train_loader, val_loader)
 #trainer_advNet.test(dataloaders=test_loader)
 
-''' Step 3: train XVAE with adversarial loss '''
-ckpt_advNet_path = f"{os.getcwd()}/lightning_logs/advTraining/pre_advNet/version_0/checkpoints"
+
+# ''' Step 3A: train XVAE with adversarial loss '''
+# ckpt_advNet_path = f"{os.getcwd()}/lightning_logs/advTraining/pre_advNet/version_0/checkpoints"
+# ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
+
+# model_xvae_adv = XVAE_w_advNet(PATH_xvae_ckpt=ckpt_xvae_file,
+#                                PATH_advNet_ckpt=ckpt_advNet_file)
+
+# logger_xvae_adv = TensorBoardLogger(save_dir=os.getcwd(), name="lightning_logs/advTraining/XVAE_adv")
+# trainer_xvae_adv  = L.Trainer(default_root_dir=os.getcwd(), 
+#                     accelerator="auto", 
+#                     devices=1, 
+#                     log_every_n_steps=10, 
+#                     logger=logger_xvae_adv, 
+#                     max_epochs=100,
+#                     fast_dev_run=False) #
+# trainer_xvae_adv.fit(model_xvae_adv, train_loader, val_loader)
+# trainer_xvae_adv.test(dataloaders=test_loader)
+
+
+''' Step 3B: train XVAE with adversarial loss in ping pong fashion'''
+ckpt_advNet_path = f"{os.getcwd()}/lightning_logs/advTraining/pre_advNet/version_1/checkpoints"
 ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
 
-model_xvae_adv = XVAE_w_advNet(PATH_xvae_ckpt=ckpt_xvae_file,
-                               PATH_advNet_ckpt=ckpt_advNet_file)
+model_xvae_adv = XVAE_w_advNet_pingpong(PATH_xvae_ckpt=ckpt_xvae_file,
+                                        PATH_advNet_ckpt=ckpt_advNet_file,
+                                        lamdba_deconf = 0,
+                                        freeze_advNet=False)
 
-logger_xvae_adv = TensorBoardLogger(save_dir=os.getcwd(), name="lightning_logs/advTraining/XVAE_adv")
-trainer_xvae_adv  = L.Trainer(default_root_dir=os.getcwd(), 
+logger_xvae_adv_pingpong = TensorBoardLogger(save_dir=os.getcwd(), name="lightning_logs/advTraining/XVAE_adv_pingpong")
+trainer_xvae_adv_pingpong  = L.Trainer(default_root_dir=os.getcwd(), 
                     accelerator="auto", 
                     devices=1, 
                     log_every_n_steps=10, 
-                    logger=logger_xvae_adv, 
-                    max_epochs=100,
+                    logger=logger_xvae_adv_pingpong, 
+                    max_epochs=1,
                     fast_dev_run=False) #
-trainer_xvae_adv.fit(model_xvae_adv, train_loader, val_loader)
-trainer_xvae_adv.test(dataloaders=test_loader)
+trainer_xvae_adv_pingpong.fit(model_xvae_adv, train_loader, val_loader)
+#trainer_xvae_adv_pingpong.test(dataloaders=test_loader)
