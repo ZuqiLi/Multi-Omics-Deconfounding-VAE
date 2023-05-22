@@ -31,7 +31,8 @@ class XVAE(L.LightningModule):
         self.beta = beta                # weight for distance term in loss function
         self.c = 6                      # number of clusters
         self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
-        
+        self.save_hyperparameters()
+
         ### encoder
         ### NOTE: hard coded reduction for now - change later!!
         self.encoder_x1_fc = nn.Sequential(nn.Linear(x1_size, 128), 
@@ -94,6 +95,12 @@ class XVAE(L.LightningModule):
         z = self.sample_z(mu, log_var)
         x1_hat, x2_hat = self.decode(z)
         return x1_hat, x2_hat        
+    
+
+    def generate_embedding(self, x1, x2):
+        mu, log_var = self.encode(x1, x2)
+        z = self.sample_z(mu, log_var)
+        return z
 
 
     def configure_optimizers(self):

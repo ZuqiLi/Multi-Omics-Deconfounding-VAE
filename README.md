@@ -39,11 +39,15 @@ source activate env_multiviewVAE
     - [x] Strategy 1: Run K-means (or other clustering methods) on the latent space
     - [ ] Strategy 2: Add a term in the loss function to iteratively optimize the clustering quality
 - [ ] 4. Correct for confounders
-    - [ ] Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders; Adapted from: Lawry Aguila, Ana, et al. "Conditional VAEs for Confound Removal and Normative Modelling of Neurodegenerative Diseases." Medical Image Computing and Computer Assisted Intervention–MICCAI 2022: 25th International Conference, Singapore, September 18–22, 2022, Proceedings, Part I. Cham: Springer Nature Switzerland, 2022. <br/><img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
-      - [ ] Build cVAE - concat covariates to input dim & latent dim
+    - [x] Strategy 1: Take confounders into account during decoding and the loss function is conditioned on the confounders; Adapted from: Lawry Aguila, Ana, et al. "Conditional VAEs for Confound Removal and Normative Modelling of Neurodegenerative Diseases." Medical Image Computing and Computer Assisted Intervention–MICCAI 2022: 25th International Conference, Singapore, September 18–22, 2022, Proceedings, Part I. Cham: Springer Nature Switzerland, 2022. <br/><img src="https://user-images.githubusercontent.com/7692477/226375457-f5d7bd2b-7b79-4b8f-83c3-e3a696ad200f.png" width="500">
+      - [x] Build cVAE - concat covariates to input dim & latent dim
     
     - [ ] Strategy 2: Add a term in loss function to minimize the association/similarity between the latent embedding and confounders <br/><img src="https://user-images.githubusercontent.com/7692477/233090210-96ab3edd-3cc5-4c79-b291-8c761d6214ee.png" width="500">
-      - [ ] Talk again with Lau about his idea + implementation (as easy as correlating latent features with covariates and adding it to the loss?)
+      - [ ] XVAE with adversarial training; [Inspiration from this paper](https://academic.oup.com/bioinformatics/article/36/Supplement_2/i573/6055930)
+        - [x] simple version; only pre-training
+        - [ ] ping pong training
+
+    - [ ] Strategy 3: Simply remove confounded latent features
 
 
 

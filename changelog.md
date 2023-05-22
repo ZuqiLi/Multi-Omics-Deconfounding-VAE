@@ -16,3 +16,7 @@
 - test both original version and deconfounding version of XVAE on the data
 - add associations between final clustering and covariates as metrics
 - try to add cov in the input layer instead of fused layer
+
+
+[SK] - 22.05.2023:
+- implemented adversarial training (no ping pong); `trainModel_adversarial.py`

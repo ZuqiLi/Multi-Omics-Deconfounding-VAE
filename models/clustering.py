@@ -43,7 +43,7 @@ def test_confounding(clust, conf):
             aov = ols('cov ~ C(clust)', data={'cov': var, 'clust': clust}).fit()
             aov = sm.stats.anova_lm(aov, typ=2)
             pvals.append(aov['PR(>F)'][0])
-    # multiple testing correction
+    ### multiple testing correction
     pvals = FDR(pvals)[1]
     return pvals
 
