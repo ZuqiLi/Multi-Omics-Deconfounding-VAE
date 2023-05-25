@@ -22,12 +22,11 @@ class XVAE_w_advNet_pingpong(L.LightningModule):
                  lamdba_deconf = 1,
                  distance="mmd", 
                  beta=1,
-                 freeze_advNet=False): 
+                 freeze_advNet=True): 
         super().__init__()
         self.lamdba_deconf = lamdba_deconf
         self.distance = distance
         self.beta = beta
-        self.freeze_advNet = freeze_advNet
         self.save_hyperparameters()
         self.test_step_outputs = [] 
 
@@ -38,16 +37,9 @@ class XVAE_w_advNet_pingpong(L.LightningModule):
 
         ### Load pre-trained advNet and freeze weights
         self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt)
-        #self.advNet_pre.freeze()
-        if self.freeze_advNet:
-            self.advNet_pre.freeze()
-            self.xvae_pre.unfreeze()
-        else:
-            self.advNet_pre.unfreeze()            
-            self.xvae_pre.freeze()
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0.001)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0)
         # Using a scheduler is optional but can be helpful.
         # The scheduler reduces the LR if the validation performance hasn't improved for the last N epochs
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=20, min_lr=5e-5)
@@ -102,29 +94,29 @@ class XVAE_w_advNet_pingpong(L.LightningModule):
             return advNet_loss
 
     ### Ping pong training
-    
     def training_step(self, batch, batch_idx):
         if self.current_epoch % 2 == 0:
-            self.freeze_advNet = True
-            ### print("\n\n Start xvae loop", self.freeze_advNet)
+            for param in self.xvae_pre.parameters():
+                param.requires_grad = True
+            for param in self.advNet_pre.parameters():
+                param.requires_grad = False        
             # Calculate loss
             ae_loss, advNet_loss, combined_loss = self.compute_loss_combined(batch)
             # Save metric 
             self.log('train_ae_loss', ae_loss, on_step = False, on_epoch = True, prog_bar = True)       
             self.log('train_combined_loss', combined_loss, on_step = False, on_epoch = True, prog_bar = True)
             # Prepare for next epoch
-            self.freeze_advNet = False
             return combined_loss
         
-        else: 
-            self.freeze_advNet = False
-            ### print("\n\n Start advNet loop", self.freeze_advNet)
-            # Calculate loss
+        else:             
+            # Freeze that fucker
+            for param in self.xvae_pre.parameters():
+                param.requires_grad = False
+            for param in self.advNet_pre.parameters():
+                param.requires_grad = True        
             advNet_loss = self.compute_loss_advNet(batch)
             # save metric
             self.log('train_advNet_loss', advNet_loss, on_step = False, on_epoch = True, prog_bar = True)
-            # Prepare for next epoch
-            self.freeze_advNet = True
             return advNet_loss
 
 
@@ -210,7 +202,6 @@ class XVAE_w_advNet_pingpong(L.LightningModule):
         return
 
 
-
 class XVAE_w_advNet(L.LightningModule):
     def __init__(self, 
                  PATH_xvae_ckpt,
@@ -232,10 +223,10 @@ class XVAE_w_advNet(L.LightningModule):
 
         ### Load pre-trained advNet and freeze weights
         self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt)
-        #self.advNet_pre.freeze()
+        self.advNet_pre.freeze()
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0.001)
+        optimizer = optim.Adam(self.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0)
         # Using a scheduler is optional but can be helpful.
         # The scheduler reduces the LR if the validation performance hasn't improved for the last N epochs
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=20, min_lr=5e-5)
@@ -574,9 +565,9 @@ class XVAE_preTrg(L.LightningModule):
         #vae_loss = recon_loss + self.beta * distance
 
         ### Implement (very easy, monotonic) KL annealing - slowly start increasing beta value
-        if self.current_epoch <= 10:
+        if self.current_epoch <= 2:
             self.beta = 0
-        elif (self.current_epoch > 10) & (self.current_epoch < 20):   #### possibly change these values
+        elif (self.current_epoch > 2) & (self.current_epoch < 5):   #### possibly change these values
             self.beta = 0.5
         else:
             self.beta = 1
