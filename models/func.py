@@ -70,10 +70,21 @@ def mmd(x, y):
 
 def mse(pred, true):
     ''' MSE loss for regression '''
-    loss = torch.nn.MSELoss(reduction="sum")
+    loss = torch.nn.MSELoss(reduction="mean")
     mse_loss = loss(torch.flatten(pred), true)
     return mse_loss
 
+def bce(pred, true):
+    ''' BCE loss for clf '''
+    loss = torch.nn.BCELoss(reduction="mean")
+    bce_loss = loss(pred, true)
+    return bce_loss
+
+def crossEntropy(pred, true):
+    ''' Crossentropy loss for clf '''
+    loss = torch.nn.CrossEntropyLoss(reduction="mean")
+    crossent = loss(pred, true)
+    return crossent
 
 ''' 
 QC scores
