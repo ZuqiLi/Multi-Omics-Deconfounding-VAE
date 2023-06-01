@@ -1,4 +1,0 @@
-PATH_xvae_ckpt: /home/sonja/PROJECTS/multiview_deconf_VAE/Multi-view-Deconfounding-VAE/lightning_logs/advTraining/pre_XVAE/version_0/checkpoints/epoch=9-step=330.ckpt
-cov_size: 1
-loss_func: mse
-ls: 50
