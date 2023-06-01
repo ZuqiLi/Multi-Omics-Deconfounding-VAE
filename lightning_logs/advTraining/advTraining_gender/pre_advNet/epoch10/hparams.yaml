@@ -1,0 +1,5 @@
+PATH_xvae_ckpt: /home/sonja/PROJECTS/multiview_deconf_VAE/Multi-view-Deconfounding-VAE/lightning_logs/advTraining/advTraining_gender/pre_XVAE/epoch10/checkpoints/epoch=9-step=330.ckpt
+loss_func_regr: mse
+ls: 50
+num_cov_clf: 1
+num_cov_regr: null

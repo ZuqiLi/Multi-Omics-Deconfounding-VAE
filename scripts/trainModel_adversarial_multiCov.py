@@ -54,15 +54,17 @@ Specify confounders
 conf = traits[:, :-1] # stage, age, race, gender
 # scaling of age
 conf[:,1] = ((conf[:,1] - np.min(conf[:,1])) / (np.max(conf[:,1]) - np.min(conf[:,1]))) 
-conf_onehot = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform(conf[:,[3,2]])
-conf = np.concatenate((conf[:,[1]], conf_onehot), axis=1) ### conf[:,[1]] ### 
-print('\n\n Shape of confounders:', conf.shape, "\n\n")
+conf_onehot = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform(conf[:,[3]])
 
-#####  CHANGE these vars if one datatype is not used
-num_conf_regr = 1         ### 1  
+
+#######################################################
+##  CHANGE these vars if one datatype is not used    ##
+#######################################################
+conf = np.concatenate((conf[:,[1]], conf_onehot), axis=1)     ### Watch out: continous variables should go first
+num_conf_regr = 1         ### None  
 num_conf_clf = conf_onehot.shape[1]         ### None
-labels_onehot = ['Age','Gender','Race1', 'Race2', 'Race3'] #['Age','Gender','Race1', 'Race2', 'Race3'] #"Gender2", 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Race1', 'Race2', 'Race3']
-
+labels_onehot = ['Age', "Gender"] #,'Gender','Race1', 'Race2', 'Race3'] #"Gender", 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Race1', 'Race2', 'Race3']
+print('\n\n Shape of confounders:', conf.shape, "\n\n")
 
 ''' Split into training and validation sets '''
 n_samples = X1.shape[0]
@@ -110,17 +112,17 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "advTraining_final"
+outname = "advTraining/advTraining_genderAge"
 
 ## Set number of latent features
 ls = 50
 
 ## pretrainig epochs
-epochs_preTrg_ae = 1        #10
-epochs_preTrg_advNet = 1    #10
+epochs_preTrg_ae = 10        #10
+epochs_preTrg_advNet = 10    #10
 
 ## adversarial training epochs
-epochs_ae_w_advNet = [1, 2] 
+epochs_ae_w_advNet = [1, 100] 
 
 '''
 Step 1: pre-train XVAE 
@@ -142,7 +144,7 @@ trainer_xvae  = L.Trainer(default_root_dir=os.getcwd(),
                           max_epochs=epochs_preTrg_ae, 
                           fast_dev_run=False) #
 trainer_xvae.fit(model_pre_XVAE, train_loader, val_loader)
-trainer_xvae.test(dataloaders=test_loader)
+trainer_xvae.test(dataloaders=test_loader, ckpt_path='best')
 os.rename(f"lightning_logs/{outname}/pre_XVAE/version_0", f"lightning_logs/{outname}/pre_XVAE/epoch{epochs_preTrg_ae}")
 
 
@@ -166,7 +168,7 @@ trainer_advNet  = L.Trainer(default_root_dir=os.getcwd(),
                     max_epochs=epochs_preTrg_advNet, 
                     fast_dev_run=False) #
 trainer_advNet.fit(model_pre_advNet, train_loader, val_loader)
-trainer_advNet.test(dataloaders=test_loader)
+trainer_advNet.test(dataloaders=test_loader, ckpt_path='best')
 os.rename(f"lightning_logs/{outname}/pre_advNet/version_0", f"lightning_logs/{outname}/pre_advNet/epoch{epochs_preTrg_advNet}")
 
 
@@ -193,5 +195,5 @@ for epochs in epochs_ae_w_advNet:
                         max_epochs=epochs,
                         fast_dev_run=False) #
     trainer_xvae_adv_pingpong.fit(model_xvae_adv, train_loader, val_loader)
-    trainer_xvae_adv_pingpong.test(dataloaders=test_loader)
+    trainer_xvae_adv_pingpong.test(dataloaders=test_loader, ckpt_path='best')
     os.rename(f"lightning_logs/{outname}/XVAE_adv_pingpong/version_0", f"lightning_logs/{outname}/XVAE_adv_pingpong/epoch{epochs}")
