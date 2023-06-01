@@ -33,16 +33,16 @@ def external_metrics(clust_labels, true_labels):
 def test_confounding(clust, conf):
     pvals = []
     for var in conf.T:
-        if np.all([x.is_integer() for x in var]): # integer vector (discrete variable)
-            # Chi-square test
-            count = pd.crosstab(index=clust, columns=var)
-            chi = chi2_contingency(count)
-            pvals.append(chi[1])
-        else: # continuous variable
-            # ANOVA
-            aov = ols('cov ~ C(clust)', data={'cov': var, 'clust': clust}).fit()
-            aov = sm.stats.anova_lm(aov, typ=2)
-            pvals.append(aov['PR(>F)'][0])
+        #if np.all([x.is_integer() for x in var]): # integer vector (discrete variable)
+        #    # Chi-square test
+        #    count = pd.crosstab(index=clust, columns=var)
+        #    chi = chi2_contingency(count)
+        #    pvals.append(chi[1])
+        #else: # continuous variable
+        # ANOVA
+        aov = ols('cov ~ C(clust)', data={'cov': var, 'clust': clust}).fit()
+        aov = sm.stats.anova_lm(aov, typ=2)
+        pvals.append(aov['PR(>F)'][0])
     # multiple testing correction
     pvals = FDR(pvals)[1]
     return pvals

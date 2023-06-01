@@ -46,8 +46,8 @@ class cXVAE(L.LightningModule):
                                            nn.LeakyReLU(), 
                                            nn.BatchNorm1d(128))   
         ### fusing
-        self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128 + self.cov_size, 128), ### add covariates in this layer
-        #self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128, 128), 
+        #self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128 + self.cov_size, 128), ### add covariates in this layer
+        self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128, 128), 
                                           nn.LeakyReLU(), 
                                           nn.BatchNorm1d(128))  
         
@@ -84,8 +84,8 @@ class cXVAE(L.LightningModule):
         x1 = self.encoder_x1_fc(x1)
         #x2 = self.encoder_x2_fc(torch.cat((x2, cov), dim=1))
         x2 = self.encoder_x2_fc(x2)
-        x_fused = torch.cat((x1, x2, cov), dim=1)
-        #x_fused = torch.cat((x1, x2), dim=1)
+        #x_fused = torch.cat((x1, x2, cov), dim=1)
+        x_fused = torch.cat((x1, x2), dim=1)
         x_hidden = self.encoder_fuse(x_fused)
         mu = self.embed_mu(x_hidden)
         log_var = self.embed_log_var(x_hidden)
@@ -205,16 +205,23 @@ class cXVAE(L.LightningModule):
 
 
         ''' Absolute correlation to confounding variables '''
+        labels = ['Gender', 'Age']
+        labels_onehot = ['Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Age', 'Race1', 'Race2', 'Race3']
+        #bins = conf[:, 1:]
+        #digits = np.argmax(bins, axis=1)
+        #conf = np.concatenate((conf[:,[0]], digits[:,None]), axis=1)
+        
+        bins = conf[:, 5:15]
+        digits = np.argmax(bins, axis=1)
+        conf = np.concatenate((conf[:,:5], digits[:,None], conf[:,15:]), axis=1)
         corr_conf = [np.abs(np.corrcoef(LF.T, conf[:,i].T)[:-1,-1]) for i in range(conf.shape[1])]
         fig, ax = plt.subplots(figsize=(15,5))
         im = plt.imshow(corr_conf, cmap='hot', interpolation='nearest')
-        labels = ['Stage','Age','Race','Gender']
-        labels_onehot = ['Age', 'Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Race1', 'Race2', 'Race3']
         ax.set_yticks(np.arange(conf.shape[1]), labels=labels_onehot)
         ax.tick_params(axis='both', labelsize=10)
         plt.colorbar(im)
         self.logger.experiment.add_figure(tag="Correlation with covariates", figure=fig)
-
+        
         ''' Association between clustering and confounders '''
         pvals = test_confounding(clust, conf)
 

@@ -29,14 +29,20 @@ X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_miRNAs_processed.csv'), del
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
+n_samples = X1.shape[0]
 # Get traits
 Y = traits[:, -1]
 # The rest as confounders  --- TO DO: one hot encode / bin them 
 conf = traits[:, :-1] # stage, age, race, gender
+#conf[:,1] = (conf[:,1] - np.min(conf[:,1])) / (np.max(conf[:,1]) - np.min(conf[:,1]) + 1e-8) # rescale age to [0,1)
+# bin age accoring to quantiles
+n_bins = 10
+age = conf[:,1].copy()
+bins = np.histogram(age, bins=10, range=(age.min(), age.max()+1e-8))[1]
+conf[:,1] = np.digitize(age, bins) # starting from 1
 # onehot encoding
-conf[:,1] = (conf[:,1] - np.min(conf[:,1])) / (np.max(conf[:,1]) - np.min(conf[:,1]))
-conf_onehot = OneHotEncoder(sparse=False).fit_transform(conf[:,[0,2]])
-conf = np.concatenate((conf[:,[1,3]], conf_onehot), axis=1)
+conf_onehot = OneHotEncoder(sparse=False).fit_transform(conf[:,:3])
+conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 print('Shape of confounders:', conf.shape)
 
 ''' Split into training and validation sets '''
@@ -90,7 +96,7 @@ trainer = L.Trainer(default_root_dir=os.getcwd(),
                     devices=1, 
                     log_every_n_steps=10, 
                     logger=logger, 
-                    max_epochs=25,
+                    max_epochs=100,
                     fast_dev_run=False) #
 # Use trainer to fit vae model to dataset
 trainer.fit(model, train_loader, val_loader)
