@@ -20,3 +20,6 @@
 
 [SK] - 22.05.2023:
 - implemented adversarial training (no ping pong); `trainModel_adversarial.py`
+
+[SK] - 04.06.2023:
+- implemented adversarial training for multiple covariates (ping pong); `adversarial_XVAE_multiCov.py`
