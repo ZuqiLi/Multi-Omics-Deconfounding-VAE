@@ -13,6 +13,8 @@ dependencies:
   - torchvision
   - tensorboard
   - matplotlib
+  - statsmodels
+  # - torchaudio
   ### Optional:
   # - jupyter
   # - jupyterlab
