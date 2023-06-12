@@ -1,0 +1,5 @@
+beta: 1
+distance: mmd
+ls: 50
+x1_size: 2000
+x2_size: 1000
