@@ -9,7 +9,7 @@ import torch.utils.data as data
 import sys
 sys.path.append("./")
 from models.adversarial_XVAE_multiclass_1batch import advNet, XVAE_preTrg, XVAE_w_advNet_pingpong
-from data.preprocess import ConcatDataset
+from Data.preprocess import ConcatDataset
 
 ''' 
 XVAE with adversarial training as deconfounding strategy
@@ -63,7 +63,7 @@ conf_onehot = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform
 #######################################################
 ##  CHANGE these vars if one datatype is not used    ##
 #######################################################
-conf = conf_onehot #np.concatenate((conf[:,[1]], conf_onehot), axis=1)     ### Watch out: continous variables should go first
+conf = torch.from_numpy(conf_onehot).to(torch.float32)   #np.concatenate((conf[:,[1]], conf_onehot), axis=1)     ### Watch out: continous variables should go first
 num_conf_regr = None         ### None  
 num_conf_clf = conf_onehot.shape[1]         ### None
 labels_onehot = [f"artificial{i}" for i in range(num_conf_clf)] #,'Gender','Race1', 'Race2', 'Race3'] #"Gender", 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Race1', 'Race2', 'Race3']
@@ -78,9 +78,9 @@ train_idx, val_idx, test_idx = indices[:2100], indices[2100:2700], indices[2700:
 # # we test on the whole dataset for clustering
 # train_idx = np.concatenate((train_idx, test_idx))
 # test_idx = indices
-X1_train, X1_val, X1_test = X1[train_idx,:], X1[val_idx,:], X1[test_idx,:]
-X2_train, X2_val, X2_test = X2[train_idx,:], X2[val_idx,:], X2[test_idx,:] 
-conf_train, conf_val, conf_test = conf[train_idx,:], conf[val_idx,:], conf[test_idx,:] 
+X1_train, X1_val, X1_test = scale(X1[train_idx,:]), scale(X1[val_idx,:]), scale(X1[test_idx,:])
+X2_train, X2_val, X2_test = scale(X2[train_idx,:]), scale(X2[val_idx,:]), scale(X2[test_idx,:])
+conf_train, conf_val, conf_test = scale(conf[train_idx,:]), scale(conf[val_idx,:]), scale(conf[test_idx,:])
 Y_test = Y[test_idx]
 
 ''' Initialize Dataloader '''

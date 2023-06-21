@@ -8,8 +8,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.adversarial_XAE_multiCov_multipleAdvNet import advNet, XAE_preTrg, XAE_w_advNet_pingpong
-from data.preprocess import ConcatDataset
+from models.adversarial_XAE_multipleAdvNet import advNet, XAE_preTrg, XAE_w_advNet_pingpong
+from Data.preprocess import ConcatDataset
 
 ''' 
 XAE with adversarial training as deconfounding strategy
@@ -53,6 +53,7 @@ Specify confounders
     - if no discrete confounders: `num_conf_discrete` = None 
 '''
 conf = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform(artificialConf)
+conf = torch.from_numpy(conf_onehot).to(torch.float32) 
 print("\n",{conf.shape})
 
 ''' Dirty dic '''
@@ -62,9 +63,9 @@ dic_conf = {"artificialConf_OHE":[0,1,2,3,4,5]}
 n_samples = X1.shape[0]
 indices = np.random.permutation(n_samples)
 train_idx, val_idx, test_idx = indices[:2100], indices[2100:2700], indices[2700:]
-X1_train, X1_val, X1_test = X1[train_idx,:], X1[val_idx,:], X1[test_idx,:]
-X2_train, X2_val, X2_test = X2[train_idx,:], X2[val_idx,:], X2[test_idx,:] 
-conf_train, conf_val, conf_test = conf[train_idx,:], conf[val_idx,:], conf[test_idx,:] 
+X1_train, X1_val, X1_test = scale(X1[train_idx,:]), scale(X1[val_idx,:]), scale(X1[test_idx,:])
+X2_train, X2_val, X2_test = scale(X2[train_idx,:]), scale(X2[val_idx,:]), scale(X2[test_idx,:])
+conf_train, conf_val, conf_test = scale(conf[train_idx,:]), scale(conf[val_idx,:]), scale(conf[test_idx,:])
 Y_test = Y[test_idx]
 
 ''' Initialize Dataloader '''
@@ -98,7 +99,7 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "advTraining_AE/advTraining_multiAdvNet"
+outname = "artificial2/advTraining_AE_multinet"
 
 ## Set number of latent features
 ls = 50
@@ -108,7 +109,7 @@ epochs_preTrg_ae = 5        #10
 epochs_preTrg_advNet = 5   #10
 
 ## adversarial training epochs
-epochs_ae_w_advNet = [1,100] #, 100] 
+epochs_ae_w_advNet = [1,10] #, 100] 
 
 '''
 Step 1: pre-train XAE 

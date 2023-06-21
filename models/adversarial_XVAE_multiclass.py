@@ -349,14 +349,17 @@ class XVAE_preTrg(L.LightningModule):
         ### encoder
         ### NOTE: hard coded reduction for now - change later!!
         self.encoder_x1_fc = nn.Sequential(nn.Linear(x1_size, 128), 
+                                           nn.Dropout(p=0.3),
                                            nn.LeakyReLU(), 
                                            nn.BatchNorm1d(128))   
         self.encoder_x2_fc = nn.Sequential(nn.Linear(x2_size, 128), 
+                                           nn.Dropout(p=0.3),
                                            nn.LeakyReLU(), 
                                            nn.BatchNorm1d(128))   
         ### fusing
         self.encoder_fuse = nn.Sequential(nn.Linear(128+128,     
                                                     128), 
+                                          nn.Dropout(p=0.3),
                                           nn.LeakyReLU(), 
                                           nn.BatchNorm1d(128))  
         

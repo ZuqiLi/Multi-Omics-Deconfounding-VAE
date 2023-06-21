@@ -221,8 +221,6 @@ class advNet(L.LightningModule):
         for ele in self.adv_net_allConfounders:
             ele.apply(lambda m: init_weights(m, "rai"))
         
-        print("\n\n",self.adv_net_allConfounders)
-
         ### Initialise weights  
         for ele in [self.adv_net_hidden]:
             ele.apply(lambda m: init_weights(m, "rai"))
