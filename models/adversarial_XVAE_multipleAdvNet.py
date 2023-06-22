@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.nn import ModuleList
 import pytorch_lightning as L
 from sklearn.metrics import mean_absolute_error, roc_auc_score
 from scipy.stats import pearsonr
@@ -13,7 +14,6 @@ from models.func import kld, mmd, reconAcc_pearsonCorr, reconAcc_relativeError, 
 from models.clustering import *
 import pandas as pd
 import matplotlib.pyplot as plt
-
 
 class XVAE_w_advNet_pingpong(L.LightningModule):
     def __init__(self, 
@@ -202,8 +202,7 @@ class advNet(L.LightningModule):
 
         ### adversarial net
         self.adv_net_hidden = nn.Sequential(nn.Linear(self.ls, 10),
-                                     nn.LeakyReLU())
-
+                                            nn.LeakyReLU())
         self.adv_net_allConfounders = []
 
         for key, val in self.dic_conf.items():
@@ -216,15 +215,18 @@ class advNet(L.LightningModule):
                                                        nn.Softmax()))     
                 else: ## single label clf
                     self.adv_net_allConfounders.append(nn.Sequential(nn.Linear(10,  len(val)),
-                                                       nn.Sigmoid()))                   
-        
+                                                       nn.Sigmoid()))            
+                    
+        ### This is needed for Lightning to realise that the subnets also get CUDA! 
+        self.adv_net_allConfounders = ModuleList(self.adv_net_allConfounders)
+
         for ele in self.adv_net_allConfounders:
             ele.apply(lambda m: init_weights(m, "rai"))
         
         ### Initialise weights  
         for ele in [self.adv_net_hidden]:
             ele.apply(lambda m: init_weights(m, "rai"))
-
+            
     def forward(self, x1, x2):
         z = self.xvae.generate_embedding(x1, x2)
         hidden = self.adv_net_hidden(z)
@@ -241,8 +243,8 @@ class advNet(L.LightningModule):
         return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "advNet_val_total"}
 
 
-    def compute_loss(self, batch):
-        x1, x2, allCov = batch 
+    def compute_loss(self, batch):        
+        x1, x2, allCov = batch
         y_pred_all = self.forward(x1,x2)
 
         total_loss = dict()

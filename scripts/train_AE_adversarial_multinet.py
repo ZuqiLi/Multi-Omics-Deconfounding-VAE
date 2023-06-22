@@ -9,7 +9,7 @@ import torch.utils.data as data
 import sys
 sys.path.append("./")
 from models.adversarial_XAE_multipleAdvNet import advNet, XAE_preTrg, XAE_w_advNet_pingpong
-from Data.preprocess import ConcatDataset
+from Data.preprocess import ConcatDataset, scale
 
 ''' 
 XAE with adversarial training as deconfounding strategy
@@ -53,7 +53,7 @@ Specify confounders
     - if no discrete confounders: `num_conf_discrete` = None 
 '''
 conf = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform(artificialConf)
-conf = torch.from_numpy(conf_onehot).to(torch.float32) 
+conf = torch.from_numpy(conf).to(torch.float32) 
 print("\n",{conf.shape})
 
 ''' Dirty dic '''
@@ -99,14 +99,14 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "artificial2/advTraining_AE_multinet"
+outname = "artificialConfounder/advTraining_AE_multinet"
 
 ## Set number of latent features
 ls = 50
 
 ## pretrainig epochs
-epochs_preTrg_ae = 5        #10
-epochs_preTrg_advNet = 5   #10
+epochs_preTrg_ae = 1        #10
+epochs_preTrg_advNet = 1   #10
 
 ## adversarial training epochs
 epochs_ae_w_advNet = [1,10] #, 100] 

@@ -4,6 +4,7 @@ import numpy as np
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch
 import torch.nn as nn
+from torch.nn import ModuleList
 import torch.optim as optim
 import torch.nn.functional as F
 import pytorch_lightning as L
@@ -206,6 +207,9 @@ class advNet(L.LightningModule):
                 else: ## single label clf
                     self.adv_net_allConfounders.append(nn.Sequential(nn.Linear(10,  len(val)),
                                                        nn.Sigmoid()))                   
+        
+        ### This is needed for Lightning to realise that the subnets also get CUDA! 
+        self.adv_net_allConfounders = ModuleList(self.adv_net_allConfounders)
         
         for ele in self.adv_net_allConfounders:
             ele.apply(lambda m: init_weights(m, "rai"))

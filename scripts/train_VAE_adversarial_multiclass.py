@@ -115,7 +115,7 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "artificial2/advTraining_multiclass_SCALE"
+outname = "artificialConfounder/advTraining_multiclass"
 
 ## Set number of latent features
 ls = 50
@@ -125,7 +125,7 @@ epochs_preTrg_ae = 5        #10
 epochs_preTrg_advNet = 5    #10
 
 ## adversarial training epochs
-epochs_ae_w_advNet = [1, 10] 
+epochs_ae_w_advNet = [1, 200] 
 
 '''
 Step 1: pre-train XVAE 

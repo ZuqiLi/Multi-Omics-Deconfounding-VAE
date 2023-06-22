@@ -9,7 +9,7 @@ import torch.utils.data as data
 import sys
 sys.path.append("./")
 from models.adversarial_XVAE_multipleAdvNet import advNet, XVAE_preTrg, XVAE_w_advNet_pingpong
-from Data.preprocess import ConcatDataset
+from Data.preprocess import ConcatDataset, scale
 
 ''' 
 XVAE with adversarial training as deconfounding strategy
@@ -99,7 +99,7 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "artificial2/advTraining_VAE_multinet"
+outname = "artificialConfounder/advTraining_VAE_multinet"
 
 ## Set number of latent features
 ls = 50
@@ -180,6 +180,6 @@ for epochs in epochs_ae_w_advNet:
                         logger=logger_xvae_adv_pingpong, 
                         max_epochs=epochs,
                         fast_dev_run=False) #
-    trainer_xvae_adv_pingpong.fit(model_xvae_adv, train_loader, val_loader)
-    trainer_xvae_adv_pingpong.test(dataloaders=test_loader, ckpt_path='best')
-    os.rename(f"lightning_logs/{outname}/XVAE_adv_pingpong/version_0", f"lightning_logs/{outname}/XVAE_adv_pingpong/epoch{epochs}")
+    #trainer_xvae_adv_pingpong.fit(model_xvae_adv, train_loader, val_loader)
+    #trainer_xvae_adv_pingpong.test(dataloaders=test_loader, ckpt_path='best')
+    #os.rename(f"lightning_logs/{outname}/XVAE_adv_pingpong/version_0", f"lightning_logs/{outname}/XVAE_adv_pingpong/epoch{epochs}")
