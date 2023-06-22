@@ -9,7 +9,7 @@ import torch.utils.data as data
 import sys
 sys.path.append("./")
 from models.adversarial_XVAE_multiclass_1batch import advNet, XVAE_preTrg, XVAE_w_advNet_pingpong
-from Data.preprocess import ConcatDataset
+from Data.preprocess import ConcatDataset, scale
 
 ''' 
 XVAE with adversarial training as deconfounding strategy
@@ -115,7 +115,7 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "artificial2/advTraining_multiclass_1batch"
+outname = "adversarialTrg/artificialConfounder/advTraining_multiclass_1batch"
 
 ## Set number of latent features
 ls = 50
@@ -125,7 +125,7 @@ epochs_preTrg_ae = 5       #10
 epochs_preTrg_advNet = 5    #10
 
 ## adversarial training epochs
-epochs_ae_w_advNet = [1,10] 
+epochs_ae_w_advNet = [1,200] 
 
 '''
 Step 1: pre-train XVAE 

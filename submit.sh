@@ -18,4 +18,7 @@ source activate env_multiviewVAE
 echo $CONDA_DEFAULT_ENV
 
 
-python scripts/trainModel_adversarial_multiCov_1batch.py
+#python scripts/train_VAE_adversarial_multiclass.py
+#python scripts/train_VAE_adversarial_multiclass_1batch.py
+#python scripts/train_VAE_adversarial_multinet.py
+python scripts/train_AE_adversarial_multinet.py
