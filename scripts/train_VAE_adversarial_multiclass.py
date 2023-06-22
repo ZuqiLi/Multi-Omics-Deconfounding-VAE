@@ -115,7 +115,7 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "artificialConfounder/advTraining_multiclass"
+outname = "adversarialTrg/artificialConfounder/advTraining_multiclass"
 
 ## Set number of latent features
 ls = 50

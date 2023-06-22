@@ -99,17 +99,17 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "artificialConfounder/advTraining_VAE_multinet"
+outname = "adversarialTrg/artificialConfounder/advTraining_VAE_multinet"
 
 ## Set number of latent features
 ls = 50
 
 ## pretrainig epochs
-epochs_preTrg_ae = 1        #10
-epochs_preTrg_advNet = 1   #10
+epochs_preTrg_ae = 5        #10
+epochs_preTrg_advNet = 5   #10
 
 ## adversarial training epochs
-epochs_ae_w_advNet = [1, 10] #, 100] 
+epochs_ae_w_advNet = [1, 200] #, 100] 
 
 '''
 Step 1: pre-train XVAE 
