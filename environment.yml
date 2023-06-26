@@ -12,6 +12,9 @@ dependencies:
   - pytorch-lightning
   - torchvision
   - tensorboard
+  - matplotlib
+  - statsmodels
+  # - torchaudio
   ### Optional:
   # - jupyter
   # - jupyterlab

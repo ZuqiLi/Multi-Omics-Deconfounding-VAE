@@ -2,7 +2,38 @@ import os
 import numpy as np 
 import torch
 from scipy import stats
+import torch.nn as nn
 
+''' 
+Weight initialisation 
+'''
+def init_weights(layer, method="rai"):
+    ''' Initialise layers for smoother training '''    
+    def RAI_(weight, bias) -> torch.Tensor:
+        def RAI_lu_2019(fan_in, fan_out):
+            """Randomized asymmetric initializer.
+            It draws samples using RAI where fan_in is the number of input units in the weight
+            tensor and fan_out is the number of output units in the weight tensor.
+
+            Lu, Lu, et al. "Dying relu and initialization: Theory and numerical examples." arXiv preprint arXiv:1903.06733 (2019).
+            """
+            V = np.random.randn(fan_out, fan_in + 1) * 0.6007 / fan_in ** 0.5
+            for j in range(fan_out):
+                k = np.random.randint(0, high=fan_in + 1)
+                V[j, k] = np.random.beta(2, 1)
+                W = V[:, :-1].T
+                b = V[:, -1]
+            return W.astype(np.float32), b.astype(np.float32)
+        fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(weight)
+        w, b = RAI_lu_2019(fan_in, fan_out)
+        with torch.no_grad():
+            return torch.tensor(w), torch.tensor(b)
+        
+    if isinstance(layer, nn.Linear):
+        if method == "rai":
+            RAI_(layer.weight.data, layer.bias.data)
+        else:
+            torch.nn.init.kaiming_uniform_(layer.weight.data)
 
 ''' 
 Regularisation 
@@ -37,6 +68,23 @@ def mmd(x, y):
     mmd = x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
     return mmd
 
+def mse(pred, true):
+    ''' MSE loss for regression '''
+    loss = torch.nn.MSELoss(reduction="mean")
+    mse_loss = loss(torch.flatten(pred), true)
+    return mse_loss
+
+def bce(pred, true):
+    ''' BCE loss for clf '''
+    loss = torch.nn.BCELoss(reduction="mean")
+    bce_loss = loss(pred, true)
+    return bce_loss
+
+def crossEntropy(pred, true):
+    ''' Crossentropy loss for clf '''
+    loss = torch.nn.CrossEntropyLoss(reduction="mean")
+    crossent = loss(pred, true)
+    return crossent
 
 ''' 
 QC scores
