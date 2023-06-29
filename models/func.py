@@ -90,15 +90,12 @@ def crossEntropy(pred, true):
 QC scores
 '''
 
-def reconAcc_pearsonCorr(x1, x1_hat, x2, x2_hat):
+def reconAcc_pearsonCorr(x1, x1_hat):
     ''' Reconstruction accuracy (Pearson correlation between reconstruction and input) '''
     r2_x1 = []
     for i in range(x1_hat.shape[1]):
         r2_x1.append(stats.pearsonr(x1[:,i], x1_hat[:,i])[0])
-    r2_x2 = []
-    for i in range(x2_hat.shape[1]):
-        r2_x2.append(stats.pearsonr(x2[:,i], x2_hat[:,i])[0])
-    return r2_x1, r2_x2
+    return r2_x1
 
 def reconAcc_relativeError(x1, x1_hat, x2, x2_hat):
     ''' Reconstruction accuracy (relative error - L2 norm ratio) '''

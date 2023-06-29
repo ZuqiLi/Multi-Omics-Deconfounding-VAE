@@ -9,27 +9,16 @@ from models.func import init_weights, kld, mmd, reconAcc_pearsonCorr, reconAcc_r
 from models.clustering import kmeans, internal_metrics, external_metrics
 
 
-def seqBlock(in_f, out_f, *args, **kwargs):
-    return nn.Sequential(
-        nn.Linear(in_f, out_f),
-        nn.Dropout(*args, **kwargs),
-        nn.PReLU(),
-        nn.BatchNorm1d(out_f)
-    )
-
 class XVAE(L.LightningModule):
     def __init__(self, 
-                 input_size: list[int],
-                 hidden_ind_size: list[int], 
-                 hidden_fused_size: list[int],
-                 ls: int, 
-                 distance: str, 
-                 beta: int) -> None:
+                 x1_size, 
+                 x2_size, 
+                 ls, 
+                 distance, 
+                 beta): 
+                 ### save_model):     ### NOTE: this will be taken over by Lightning
 
         super().__init__()
-        self.input_size = input_size
-        self.hidden_ind_size = hidden_ind_size  
-        self.hidden_fused_size = hidden_fused_size 
         self.ls = ls                    # latent size
         self.distance = distance        # regularisation used
         self.beta = beta                # weight for distance term in loss function
@@ -37,52 +26,34 @@ class XVAE(L.LightningModule):
         self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
         self.save_hyperparameters()
 
-        #################################################
-        ##                   Encoder                   ##
-        #################################################
+        ### encoder
+        ### NOTE: hard coded reduction for now - change later!!
+        self.encoder_x1_fc = nn.Sequential(nn.Linear(x1_size, 128), 
+                                           nn.LeakyReLU(), 
+                                           nn.BatchNorm1d(128))   
+        self.encoder_x2_fc = nn.Sequential(nn.Linear(x2_size, 128), 
+                                           nn.LeakyReLU(), 
+                                           nn.BatchNorm1d(128))   
+        ### fusing
+        self.encoder_fuse = nn.Sequential(nn.Linear(128+128,     
+                                                    128), 
+                                          nn.LeakyReLU(), 
+                                          nn.BatchNorm1d(128))  
+        
+        ### latent embedding
+        self.embed_mu = nn.Linear(128, self.ls)
+        self.embed_log_var = nn.Linear(128, self.ls)
 
-        ### Individual omics part in encoder
-        self.enc_hidden_x1 = seqBlock(self.input_size[0], self.hidden_ind_size[0], p=0.2)
-        self.enc_hidden_x2 = seqBlock(self.input_size[1], self.hidden_ind_size[1], p=0.2)
-
-        ### Fused layer reductions
-        fused_encoder_all = [sum(self.hidden_ind_size)] + self.hidden_fused_size
-        fused_encoder = []
-        for i in range(len(fused_encoder_all)-1):
-            layer = nn.Linear(fused_encoder_all[i], fused_encoder_all[i+1])
-            layer.apply(init_weights)  
-            fused_encoder.append(layer)
-            fused_encoder.append(nn.Dropout(p=0.2))
-            fused_encoder.append(nn.PReLU())
-            fused_encoder.append(nn.BatchNorm1d(fused_encoder_all[i+1]))      
-        self.enc_hidden_fused = nn.Sequential(*fused_encoder)
-
-        self.embed_mu = nn.Sequential(nn.Linear(self.hidden_fused_size[-1], self.ls))
-        self.embed_log_var = nn.Sequential(nn.Linear(self.hidden_fused_size[-1], self.ls))
-
-        #################################################
-        ##                   Decoder                   ##
-        #################################################
-
-        decoder_topology = [self.ls] + self.hidden_fused_size[::-1] + [sum(self.hidden_ind_size)]
-        decoder_layers = []
-        for i in range(len(decoder_topology)-1):
-            layer = nn.Linear(decoder_topology[i],decoder_topology[i+1])
-            layer.apply(init_weights)  
-            decoder_layers.append(layer)
-            decoder_layers.append(nn.Dropout(p=0.2))
-            decoder_layers.append(nn.PReLU())
-        self.decoder_fused = nn.Sequential(*decoder_layers)
-
-        self.decoder_x1_hidden = nn.Sequential(nn.Linear(decoder_topology[-1], self.input_size[0]),
-                                            nn.Sigmoid())
-        self.decoder_x2_hidden = nn.Sequential(nn.Linear(decoder_topology[-1], self.input_size[1]),
-                                            nn.Sigmoid())
-
+        ### decoder
+        self.decoder_sample = nn.Sequential(nn.Linear(self.ls, 128),
+                                            nn.LeakyReLU())
+        self.decoder_x1_fc = nn.Sequential(nn.Linear(128, x1_size),
+                                           nn.Sigmoid())
+        self.decoder_x2_fc = nn.Sequential(nn.Linear(128, x2_size),
+                                           nn.Sigmoid())
 
         ### Initialise weights
-        for ele in [self.enc_hidden_x1, self.enc_hidden_x2, self.enc_hidden_fused, self.embed_mu, self.embed_log_var, 
-                    self.decoder_fused, self.decoder_x1_hidden, self.decoder_x2_hidden]:
+        for ele in [self.encoder_x1_fc, self.encoder_x2_fc, self.encoder_fuse, self.embed_mu, self.embed_log_var, self.decoder_sample, self.decoder_x1_fc, self.decoder_x2_fc]:
             ele.apply(init_weights)
 
 
@@ -94,20 +65,21 @@ class XVAE(L.LightningModule):
         z = z.type_as(mu) # Setting z to be .cuda when using GPU training 
         return mu + sigma*z
 
+
     def encode(self, x1, x2):
-        x1_hidden = self.enc_hidden_x1(x1)
-        x2_hidden = self.enc_hidden_x2(x2)
-        x_fused = torch.cat((x1_hidden, x2_hidden), dim=1)
-        x_fused_hidden_2 = self.enc_hidden_fused(x_fused)
-        mu = self.embed_mu(x_fused_hidden_2)
-        log_var = self.embed_log_var(x_fused_hidden_2)   
+        x1 = self.encoder_x1_fc(x1)
+        x2 = self.encoder_x2_fc(x2)
+        x_fused = torch.cat((x1, x2), dim=1)
+        x_hidden = self.encoder_fuse(x_fused)
+        mu = self.embed_mu(x_hidden)
+        log_var = self.embed_log_var(x_hidden)
         return mu, log_var
 
 
     def decode(self, z):
-        x_fused_hat = self.decoder_fused(z) 
-        x1_hat = self.decoder_x1_hidden(x_fused_hat)
-        x2_hat = self.decoder_x2_hidden(x_fused_hat)
+        x_fused_hat = self.decoder_sample(z)
+        x1_hat = self.decoder_x1_fc(x_fused_hat)
+        x2_hat = self.decoder_x2_fc(x_fused_hat)
         return x1_hat, x2_hat
 
 
@@ -148,6 +120,16 @@ class XVAE(L.LightningModule):
         recon_loss_x1 = recon_loss_criterion(x1, x1_hat)
         recon_loss_x2 = recon_loss_criterion(x2, x2_hat)
         recon_loss = recon_loss_x1 + recon_loss_x2
+        
+        #vae_loss = recon_loss + self.beta * distance
+
+        ### Implement (very easy, monotonic) KL annealing - slowly start increasing beta value
+        if self.current_epoch <= 10:
+            self.beta = 0
+        elif (self.current_epoch > 10) & (self.current_epoch < 20):   #### possibly change these values
+            self.beta = 0.5
+        else:
+            self.beta = 1
 
         reg_loss = self.beta * distance
 
@@ -203,10 +185,8 @@ class XVAE(L.LightningModule):
         x1 = torch.cat([x["x"][0] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
         x2 = torch.cat([x["x"][1] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
         x1_hat = torch.cat([x["recon"][0] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
-        x2_hat = torch.cat([x["recon"][1] for x in self.test_step_outputs], 0).detach().cpu().numpy()    
-        
-        reconAcc_x1 = reconAcc_pearsonCorr(x1, x1_hat)
-        reconAcc_x2 = reconAcc_pearsonCorr(x2, x2_hat)
+        x2_hat = torch.cat([x["recon"][1] for x in self.test_step_outputs], 0).detach().cpu().numpy() 
+        reconAcc_x1, reconAcc_x2 = reconAcc_pearsonCorr(x1, x1_hat, x2, x2_hat)
 
         ''' Relative Error using L2 norm '''
         relativeError = reconAcc_relativeError(x1, x1_hat,  x2, x2_hat)
