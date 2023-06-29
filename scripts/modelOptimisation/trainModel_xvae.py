@@ -7,7 +7,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.XVAE_backup import XVAE
+#sys.path.append("/home/WUR/katz001/PROJECTS/EMC/Multi-view-Deconfounding-VAE")
+from models.XVAE import XVAE
 from Data.preprocess import ConcatDataset, scale
 from models.clustering import *
 from models.func import reconAcc_pearsonCorr, reconAcc_relativeError
@@ -78,23 +79,17 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "optimisation_xvae/troubleshoot_originalModel"
-maxEpochs = 101
+outname = "optimisation_xvae/troubleshoot/003"
+maxEpochs = 100
 
-# model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
-#             hidden_ind_size =[150, 150],                ### first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
-#             hidden_fused_size = [150],                  ### next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
-#             ls=50,                                      ### latent size
-#             distance='mmd', 
-#             beta=1)
-model = XVAE(X1.shape[1], 
-              X2.shape[1], 
-              ls=50, 
-              distance='mmd', 
-              beta=1)
-print(ModelSummary(model, max_depth=1))
-print(model)
-
+model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
+            hidden_ind_size =[50, 150],                ### first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
+            hidden_fused_size = [150],                  ### next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
+            ls=50,                                      ### latent size
+            distance='mmd',
+            lossReduction='mean', 
+            klAnnealing=True,
+            beta=1)
 
 # Initialize Trainer and setting parameters
 logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{outname}")
@@ -110,6 +105,7 @@ trainer.fit(model, train_loader, val_loader)
 # automatically auto-loads the best weights from the previous run
 # trainer.test(dataloaders=test_loader)
 os.rename(f"lightning_logs/{outname}/version_0", f"lightning_logs/{outname}/epoch{maxEpochs}")
+
 
 
 ##################################################
@@ -170,3 +166,14 @@ print('\n\n')
 # ARI_conf, NMI_conf = external_metrics(con_clust, conf[:,0])
 # print("ARI for confounder:", ARI_conf)
 # print("NMI for confounder:", NMI_conf)
+
+
+### Save
+res = {'recon_x1':[np.mean(reconAcc_x1)],
+    'recon_x2':[np.mean(reconAcc_x2)],
+    'l2_error':[relativeError],
+    'ss':[np.mean(SSs)],
+    'db':[np.mean(DBs)],
+    'ari':[ARI],
+    'nmi':[NMI]}
+pd.DataFrame(res).to_csv(f"lightning_logs/{outname}/epoch{maxEpochs}/results_performance.csv")

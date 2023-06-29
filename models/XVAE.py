@@ -24,7 +24,9 @@ class XVAE(L.LightningModule):
                  hidden_fused_size: list[int],
                  ls: int, 
                  distance: str, 
-                 beta: int) -> None:
+                 beta=1,
+                 lossReduction="mean",
+                 klAnnealing=False) -> None:
 
         super().__init__()
         self.input_size = input_size
@@ -35,6 +37,8 @@ class XVAE(L.LightningModule):
         self.beta = beta                # weight for distance term in loss function
         self.c = 6                      # number of clusters
         self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
+        self.lossReduction = lossReduction
+        self.klAnnealing = klAnnealing
         self.save_hyperparameters()
 
         #################################################
@@ -144,10 +148,19 @@ class XVAE(L.LightningModule):
         if self.distance == "kld":
             distance = kld(mu, log_var)         
 
-        recon_loss_criterion = nn.MSELoss(reduction="sum")  ##### CHECK "mean" here again! "sum" better?
+        recon_loss_criterion = nn.MSELoss(reduction=self.lossReduction)  ##### CHECK "mean" here again! "sum" better?
         recon_loss_x1 = recon_loss_criterion(x1, x1_hat)
         recon_loss_x2 = recon_loss_criterion(x2, x2_hat)
         recon_loss = recon_loss_x1 + recon_loss_x2
+
+        if self.klAnnealing:
+            ### Implement (very easy, monotonic) KL annealing - slowly start increasing beta value
+            if self.current_epoch <= 10:
+                self.beta = 0
+            elif (self.current_epoch > 10) & (self.current_epoch < 20):   #### possibly change these values
+                self.beta = 0.5
+            else:
+                self.beta = 1
 
         reg_loss = self.beta * distance
 
