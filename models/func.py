@@ -34,8 +34,8 @@ def mmd(x, y):
     x_kernel = compute_kernel(x, x)
     y_kernel = compute_kernel(y, y)
     xy_kernel = compute_kernel(x, y)
-    mmd = x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
-    return mmd
+    mmd = x_kernel + y_kernel - 2*xy_kernel
+    return mmd.sum()
 
 
 ''' 

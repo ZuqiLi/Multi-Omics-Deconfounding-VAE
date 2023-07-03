@@ -17,7 +17,7 @@ def init_weights(layer):
         torch.nn.init.kaiming_uniform_(layer.weight.data)
 
 
-class cXVAE(L.LightningModule):
+class cXAE(L.LightningModule):
     def __init__(self, 
                  x1_size, 
                  x2_size, 
@@ -47,18 +47,17 @@ class cXVAE(L.LightningModule):
                                            nn.LeakyReLU(), 
                                            nn.BatchNorm1d(128))   
         ### fusing
-        self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128 + self.cov_size, 128), ### add covariates in this layer
-        #self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128, 128), 
+        self.encoder_fuse = nn.Sequential(nn.Linear(128 + 128, 128), 
                                           nn.LeakyReLU(), 
                                           nn.BatchNorm1d(128))  
         
         ### latent embedding
-        self.embed_mu = nn.Linear(128, self.ls)
-        self.embed_log_var = nn.Linear(128, self.ls)
+        self.embed = nn.Sequential(nn.Linear(128, self.ls),
+                                          nn.LeakyReLU(), 
+                                          nn.BatchNorm1d(self.ls))  
 
         ### decoder
         self.decoder_sample = nn.Sequential(nn.Linear(self.ls + self.cov_size, 128),
-        #self.decoder_sample = nn.Sequential(nn.Linear(self.ls, 128),
                                             nn.LeakyReLU())
         self.decoder_x1_fc = nn.Sequential(nn.Linear(128, x1_size),
                                            nn.Sigmoid())
@@ -66,18 +65,8 @@ class cXVAE(L.LightningModule):
                                            nn.Sigmoid())
 
         ### Initialise weights
-        for ele in [self.encoder_x1_fc, self.encoder_x2_fc, self.encoder_fuse, self.embed_mu, self.embed_log_var, self.decoder_sample, self.decoder_x1_fc, self.decoder_x2_fc]:
+        for ele in [self.encoder_x1_fc, self.encoder_x2_fc, self.encoder_fuse, self.embed, self.decoder_sample, self.decoder_x1_fc, self.decoder_x2_fc]:
             ele.apply(init_weights)
-
-
-    def sample_z(self, mu, log_var):
-        # Reparametrization Trick to allow gradients to backpropagate from the 
-        #stochastic part of the model
-        sigma = torch.exp(0.5*log_var)
-        z = torch.randn(size = (mu.size(0), mu.size(1)))
-        z = z.type_as(mu) # Setting z to be .cuda when using GPU training 
-        return mu + sigma*z
-
 
     def encode(self, x1, x2, cov):
         cov = cov.reshape(-1, self.cov_size).to(torch.float32)
@@ -85,12 +74,11 @@ class cXVAE(L.LightningModule):
         x1 = self.encoder_x1_fc(x1)
         #x2 = self.encoder_x2_fc(torch.cat((x2, cov), dim=1))
         x2 = self.encoder_x2_fc(x2)
-        x_fused = torch.cat((x1, x2, cov), dim=1)
-        #x_fused = torch.cat((x1, x2), dim=1)
+        #x_fused = torch.cat((x1, x2, cov), dim=1)
+        x_fused = torch.cat((x1, x2), dim=1)
         x_hidden = self.encoder_fuse(x_fused)
-        mu = self.embed_mu(x_hidden)
-        log_var = self.embed_log_var(x_hidden)
-        return mu, log_var
+        z = self.embed(x_hidden)
+        return z
     
     def decode(self, z, cov):
         cov = cov.reshape(-1, self.cov_size).to(torch.float32)
@@ -102,14 +90,12 @@ class cXVAE(L.LightningModule):
         return x1_hat, x2_hat
     
     def forward(self, x1, x2, cov):
-        mu, log_var = self.encode(x1, x2, cov)
-        z = self.sample_z(mu, log_var)
+        z = self.encode(x1, x2, cov)
         x1_hat, x2_hat = self.decode(z, cov)
         return x1_hat, x2_hat
 
     def generate_embedding(self, x1, x2, cov):
-        mu, log_var = self.encode(x1, x2, cov)
-        z = self.sample_z(mu, log_var)
+        z = self.encode(x1, x2, cov)
         return z
 
     def configure_optimizers(self):
@@ -122,49 +108,27 @@ class cXVAE(L.LightningModule):
 
     def compute_loss(self, batch):
         x1, x2, cov = batch
-        mu, log_var = self.encode(x1, x2, cov)
-        z = self.sample_z(mu, log_var)
+        z = self.encode(x1, x2, cov)
         x1_hat, x2_hat = self.decode(z, cov)
 
-        if self.distance == "mmd":
-            true_samples = torch.randn([x1.shape[0], self.ls], device=z.device)
-            distance = mmd(true_samples, z)
-        if self.distance == "kld":
-            distance = kld(mu, log_var)         
-
-        recon_loss_criterion = nn.MSELoss(reduction="sum")  ##### CHECK "mean" here again! "sum" better?
+        recon_loss_criterion = nn.MSELoss(reduction="mean")  ##### CHECK "mean" here again! "sum" better?
         recon_loss_x1 = recon_loss_criterion(x1, x1_hat)
         recon_loss_x2 = recon_loss_criterion(x2, x2_hat)
         recon_loss = recon_loss_x1 + recon_loss_x2
         
-        #vae_loss = recon_loss + self.beta * distance
-
-        ### Implement (very easy, monotonic) KL annealing - slowly start increasing beta value
-        if self.current_epoch <= 10:
-            self.beta = 0
-        elif (self.current_epoch > 10) & (self.current_epoch < 20):   #### possibly change these values
-            self.beta = 0.5
-        else:
-            self.beta = 1
-        self.beta = 1
-
-        reg_loss = self.beta * distance
-
-        return recon_loss, reg_loss, z
+        return recon_loss, z
 
 
     def training_step(self, batch, batch_idx):
-        recon_loss, reg_loss, z = self.compute_loss(batch)
-        loss = recon_loss + reg_loss
-        self.log('train_recon_loss', recon_loss, on_step = False, on_epoch = True, prog_bar = True)       
-        self.log('train_reg_loss', reg_loss, on_step = False, on_epoch = True, prog_bar = True)
+        recon_loss, z = self.compute_loss(batch)
+        loss = recon_loss
         self.log('train_loss', loss, on_step = True, on_epoch = True, prog_bar = True)
         return loss
 
 
     def validation_step(self, batch, batch_idx):
-        recon_loss, reg_loss, z = self.compute_loss(batch)
-        loss = recon_loss + reg_loss
+        recon_loss, z = self.compute_loss(batch)
+        loss = recon_loss
         self.log('val_loss', loss, on_step = False, on_epoch = True)
         return loss
 
@@ -172,8 +136,8 @@ class cXVAE(L.LightningModule):
     def test_step(self, batch, batch_idx):
         ''' Do a final quality check once using the external test set; Add here our other QC metrices; Relative Error, R2, clustering metric '''
         batch, y = batch[:3], batch[-1]
-        recon_loss, reg_loss, z = self.compute_loss(batch)
-        loss = recon_loss + reg_loss
+        recon_loss, z = self.compute_loss(batch)
+        loss = recon_loss
         x_hat = self.forward(*batch)
 
         self.log('test_loss', loss , on_step = False, on_epoch = True)
@@ -189,7 +153,7 @@ class cXVAE(L.LightningModule):
         '''
         print("\n\n ON_TEST_EPOCH_END\n\n")
 
-        ''' Clustering performance '''
+        ''' Clustering '''
         LF = torch.cat([x["z"] for x in self.test_step_outputs], 0)
         Y = torch.cat([x["y"] for x in self.test_step_outputs], 0)
         LF = LF.detach().cpu().numpy() # convert (GPU or CPU) tensor to numpy for the clustering
@@ -209,8 +173,6 @@ class cXVAE(L.LightningModule):
         ''' Relative Error using L2 norm '''
         relativeError = reconAcc_relativeError(x1, x1_hat,  x2, x2_hat)
 
-        ''' Clustering performance for the confounder '''
-        ARI_conf, NMI_conf = external_metrics(clust, conf.flatten().astype(int))
 
         ''' Absolute correlation to confounding variables '''
         labels = ['Confounder']
@@ -244,8 +206,6 @@ class cXVAE(L.LightningModule):
             | DB index    | {DB:.2f} |
             | Adjusted Rand Index   | {ARI:.2f} |
             | Normalized Mutual Info   | {NMI:.2f} |
-            | Adjusted Rand Index (conf) | {ARI_conf:.2f} |
-            | Normalized Mutual Info (conf) | {NMI_conf:.2f} |
             | Reconstruction accuracy X1 - Pearson correlation (mean+-std)   | {np.mean(reconAcc_x1):.2f}+-{np.std(reconAcc_x1):.2f} |
             | Reconstruction accuracy X2 - Pearson correlation (mean+-std)   | {np.mean(reconAcc_x2):.2f}+-{np.std(reconAcc_x2):.2f} |
             | Reconstruction accuracy - Relative error (L2 norm)   | {relativeError:.2f} |                                    
