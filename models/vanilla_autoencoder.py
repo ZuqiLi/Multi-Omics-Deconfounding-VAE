@@ -107,7 +107,7 @@ class VAE(L.LightningModule):
         if self.distance == "kld":
             distance = kld(mu, log_var)         
     
-        recon_loss_criterion = nn.MSELoss(reduction="mean")  ##### CHECK "mean" here again! "sum" better?
+        recon_loss_criterion = nn.MSELoss(reduction="sum")  ##### CHECK "mean" here again! "sum" better?
         recon_loss_x = recon_loss_criterion(x, x_hat)
         recon_loss = recon_loss_x
         

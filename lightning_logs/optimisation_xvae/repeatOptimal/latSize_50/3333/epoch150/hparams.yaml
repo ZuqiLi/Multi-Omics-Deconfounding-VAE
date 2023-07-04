@@ -1,0 +1,15 @@
+beta: 1
+distance: mmd
+dropout: 0.2
+hidden_fused_size:
+- 200
+hidden_ind_size:
+- 200
+- 200
+init_weights_func: rai
+input_size:
+- 2000
+- 2000
+klAnnealing: false
+lossReduction: sum
+ls: 50

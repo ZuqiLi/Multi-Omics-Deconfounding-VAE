@@ -15,9 +15,9 @@ from models.func import reconAcc_pearsonCorr, reconAcc_relativeError
 
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
-np.random.seed(1234)
-torch.manual_seed(1234)
-L.seed_everything(1234)
+np.random.seed(1111)
+torch.manual_seed(1111)
+L.seed_everything(1111)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -79,17 +79,20 @@ Step 0: settings
 '''
 
 ## Name of the folder
-outname = "optimisation_xvae/troubleshoot/003"
-maxEpochs = 100
+outname = "optimisation_xvae/repeatOptimal/latSize_50/1111"
+maxEpochs = 150
 
 model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
-            hidden_ind_size =[50, 150],                ### first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
-            hidden_fused_size = [150],                  ### next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
+            hidden_ind_size =[200, 200],                ### first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
+            hidden_fused_size = [200],                  ### next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
             ls=50,                                      ### latent size
             distance='mmd',
-            lossReduction='mean', 
-            klAnnealing=True,
-            beta=1)
+            lossReduction='sum', 
+            klAnnealing=False,
+            beta=1,
+            dropout=0.2,
+            init_weights_func="rai")
+print(model)
 
 # Initialize Trainer and setting parameters
 logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{outname}")
@@ -110,7 +113,7 @@ os.rename(f"lightning_logs/{outname}/version_0", f"lightning_logs/{outname}/epoc
 
 ##################################################
 ##                Reconstruction               ##
-##################################################
+###############################################
 print("\n\nCompute reconstruction accuracy...\n\n ")
 
 ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/epoch{maxEpochs}/checkpoints"

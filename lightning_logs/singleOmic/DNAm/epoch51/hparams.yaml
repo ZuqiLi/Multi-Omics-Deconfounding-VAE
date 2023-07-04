@@ -1,0 +1,7 @@
+beta: 1
+distance: mmd
+hidden_layer_encoder_topology:
+- 500
+- 200
+ls: 50
+x_size: 2000

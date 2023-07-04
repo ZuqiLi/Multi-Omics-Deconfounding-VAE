@@ -28,18 +28,21 @@ def init_weights(layer, method="rai"):
         w, b = RAI_lu_2019(fan_in, fan_out)
         with torch.no_grad():
             return torch.tensor(w), torch.tensor(b)
-        
+                
     if isinstance(layer, nn.Linear):
         if method == "rai":
             RAI_(layer.weight.data, layer.bias.data)
-        else:
-            torch.nn.init.kaiming_uniform_(layer.weight.data)
+        if method == "he":
+            torch.nn.init.kaiming_normal_(layer.weight.data)
+        if method == "xavier":
+            torch.nn.init.xavier_normal_(layer.weight.data)
+
 
 ''' 
 Regularisation 
 '''
 
-def kld(mu, log_var):
+def kld(mu, log_var, reduction="mean"):
     """
     Kullback–Leibler divergence regularizer
     This is the KL of q(z|x) given that the 
@@ -48,10 +51,13 @@ def kld(mu, log_var):
     kld = 1 + log_var - mu**2- torch.exp(log_var)
     kld = kld.sum(dim = 1)
     kld *= -0.5
-    return kld.mean(dim=0)
+    if reduction is "mean":
+        return kld.mean(dim=0)
+    if reduction is "sum":
+        return kld.sum(dim=0)
 
 
-def mmd(x, y):
+def mmd(x, y, reduction='mean'):
     """Maximum Mean Discrepancy regularizer using Gaussian Kernel"""
     def compute_kernel(a, b):
         a_size = a.shape[0]
@@ -65,14 +71,18 @@ def mmd(x, y):
     x_kernel = compute_kernel(x, x)
     y_kernel = compute_kernel(y, y)
     xy_kernel = compute_kernel(x, y)
-    mmd = x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
-    return mmd
 
-def mse(pred, true):
-    ''' MSE loss for regression '''
-    loss = torch.nn.MSELoss(reduction="mean")
-    mse_loss = loss(torch.flatten(pred), true)
-    return mse_loss
+    if reduction == 'mean':
+        return x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
+    if reduction == 'sum':
+        return x_kernel.sum() + y_kernel.sum() - 2*xy_kernel.sum()
+
+
+# def mse(pred, true):
+#     ''' MSE loss for regression '''
+#     loss = torch.nn.MSELoss(reduction="mean")
+#     mse_loss = loss(torch.flatten(pred), true)
+#     return mse_loss
 
 def bce(pred, true):
     ''' BCE loss for clf '''
