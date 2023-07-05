@@ -55,6 +55,26 @@ def consensus_clustering(labels, c):
     return label, mat, disp
 
 
+def consensus_clustering(labels, c):
+    # compute co-occurrence matrix
+    n_samples = len(labels[0])
+    mat = np.zeros((n_samples, n_samples), np.int32)
+    for label in labels:
+        for i, li in enumerate(label):
+            for j, lj in enumerate(label):
+                if li == lj: mat[i,j] += 1
+    mat = mat / len(labels)
+
+    # compute the dispersion score
+    disp = np.sum(4 * np.square(mat - 0.5)) / mat.shape[0] / mat.shape[1]
+
+    # spectral clustering
+    sc = SpectralClustering(c, n_init=10, affinity='precomputed', assign_labels='kmeans').fit(mat)
+    label = sc.labels_
+
+    return label, mat, disp
+
+
 def internal_metrics(X, labels):
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
@@ -97,5 +117,6 @@ def test_embedding_confounding(LF, conf):
     # multiple testing correction
     pvals = FDR(pvals)[1]
     return pvals, arsqs
+
 
 

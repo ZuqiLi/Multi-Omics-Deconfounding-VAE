@@ -65,7 +65,7 @@ train_idx, val_idx, test_idx = indices[:1600], indices[1600:2100], indices[2100:
 # test_idx = indices
 X1_train, X1_val, X1_test = scale(X1[train_idx,:]), scale(X1[val_idx,:]), scale(X1[test_idx,:])
 X2_train, X2_val, X2_test = scale(X2[train_idx,:]), scale(X2[val_idx,:]), scale(X2[test_idx,:])
-conf_train, conf_val, conf_test = scale(conf[train_idx,:]), scale(conf[val_idx,:]), scale(conf[test_idx,:])
+conf_train, conf_val, conf_test = conf[train_idx,:], conf[val_idx,:], conf[test_idx,:]
 Y_test = Y[test_idx]
 
 ''' Initialize Dataloader '''
@@ -90,11 +90,9 @@ test_loader = data.DataLoader(
 
 ## Run the model twice (1 epoch and 100 epochs)
 modelname = 'cXVAE_test'
-'''
 for max_epochs in [1, 100]:
     model = cXVAE(X1.shape[1], X2.shape[1], ls=64, 
               cov_size=conf.shape[1], distance='mmd', beta=1)
-
     logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{modelname}/")
     trainer = L.Trainer(default_root_dir=os.getcwd(), 
                         accelerator="auto", 
@@ -106,7 +104,7 @@ for max_epochs in [1, 100]:
     trainer.fit(model, train_loader, val_loader)
     trainer.test(dataloaders=test_loader, ckpt_path='best')
     os.rename(f"lightning_logs/{modelname}/version_0", f"lightning_logs/{modelname}/epoch{max_epochs}")
-'''
+
 ##########
 ### calculate corr coefficient difference
 ### Formula:
@@ -129,7 +127,7 @@ for i in range(50):
         #bins = conf[:, 5:15]
         #digits = np.argmax(bins, axis=1)
         #conf_test = np.concatenate((conf_test[:,:5], digits[:,None], conf_test[:,15:]), axis=1)
-        corr_conf = [np.abs(np.corrcoef(z.T, conf_test[:,i].T)[:-1,-1]) for i in range(conf_test.shape[1])]
+        corr_conf = [np.abs(np.corrcoef(z.T, conf_test[:,i])[:-1,-1]) for i in range(conf_test.shape[1])]
         res.append(pd.DataFrame(corr_conf, index=labels_onehot))
     all_corr.append(list(((res[0].T - res[1].T).mean() / res[0].T.mean())*100))
 
@@ -152,7 +150,7 @@ for i in range(50):
     ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
     model = cXVAE.load_from_checkpoint(ckpt_file)
-    z = model.generate_embedding(scale(X1), scale(X2), scale(conf)).detach().numpy()
+    z = model.generate_embedding(scale(X1), scale(X2), conf).detach().numpy()
 
     label = kmeans(z, n_clust)
     labels.append(label)

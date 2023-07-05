@@ -31,8 +31,9 @@ class cXVAE(L.LightningModule):
         self.ls = ls                    # latent size
         self.distance = distance        # regularisation used
         self.beta = beta                # weight for distance term in loss function
-        self.cov_size = cov_size            # number of covariates
-        self.num_clusters = 6                      # number of clusters
+        self.cov_size = cov_size        # number of covariates
+        self.num_clusters = 6           # number of clusters
+        self.save_hyperparameters()     # save all hyperparameters to simplify model re-instantiation
         self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
         
         ### encoder
@@ -104,8 +105,12 @@ class cXVAE(L.LightningModule):
         mu, log_var = self.encode(x1, x2, cov)
         z = self.sample_z(mu, log_var)
         x1_hat, x2_hat = self.decode(z, cov)
-        return x1_hat, x2_hat        
+        return x1_hat, x2_hat
 
+    def generate_embedding(self, x1, x2, cov):
+        mu, log_var = self.encode(x1, x2, cov)
+        z = self.sample_z(mu, log_var)
+        return z
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0.001)
@@ -127,7 +132,7 @@ class cXVAE(L.LightningModule):
         if self.distance == "kld":
             distance = kld(mu, log_var)         
 
-        recon_loss_criterion = nn.MSELoss(reduction="mean")  ##### CHECK "mean" here again! "sum" better?
+        recon_loss_criterion = nn.MSELoss(reduction="sum")  ##### CHECK "mean" here again! "sum" better?
         recon_loss_x1 = recon_loss_criterion(x1, x1_hat)
         recon_loss_x2 = recon_loss_criterion(x2, x2_hat)
         recon_loss = recon_loss_x1 + recon_loss_x2
@@ -141,6 +146,7 @@ class cXVAE(L.LightningModule):
             self.beta = 0.5
         else:
             self.beta = 1
+        self.beta = 1
 
         reg_loss = self.beta * distance
 
@@ -183,7 +189,7 @@ class cXVAE(L.LightningModule):
         '''
         print("\n\n ON_TEST_EPOCH_END\n\n")
 
-        ''' Clustering '''
+        ''' Clustering performance '''
         LF = torch.cat([x["z"] for x in self.test_step_outputs], 0)
         Y = torch.cat([x["y"] for x in self.test_step_outputs], 0)
         LF = LF.detach().cpu().numpy() # convert (GPU or CPU) tensor to numpy for the clustering
@@ -203,20 +209,32 @@ class cXVAE(L.LightningModule):
         ''' Relative Error using L2 norm '''
         relativeError = reconAcc_relativeError(x1, x1_hat,  x2, x2_hat)
 
+        ''' Clustering performance for the confounder '''
+        ARI_conf, NMI_conf = external_metrics(clust, conf.flatten().astype(int))
 
         ''' Absolute correlation to confounding variables '''
+        labels = ['Confounder']
+        #labels = ['Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Age', 'Race1', 'Race2', 'Race3']
+        #bins = conf[:, 1:]
+        #digits = np.argmax(bins, axis=1)
+        #conf = np.concatenate((conf[:,[0]], digits[:,None]), axis=1)
+        
+        #bins = conf[:, 5:15]
+        #digits = np.argmax(bins, axis=1)
+        #conf = np.concatenate((conf[:,:5], digits[:,None], conf[:,15:]), axis=1)
         corr_conf = [np.abs(np.corrcoef(LF.T, conf[:,i].T)[:-1,-1]) for i in range(conf.shape[1])]
         fig, ax = plt.subplots(figsize=(15,5))
-        im = plt.imshow(corr_conf, cmap='hot', interpolation='nearest')
-        labels = ['Stage','Age','Race','Gender']
-        labels_onehot = ['Age', 'Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Race1', 'Race2', 'Race3']
-        ax.set_yticks(np.arange(conf.shape[1]), labels=labels_onehot)
+        im = plt.imshow(corr_conf, cmap='hot', interpolation='nearest', vmin=0, vmax=0.5)
+        ax.set_yticks(np.arange(conf.shape[1]), labels=labels)
         ax.tick_params(axis='both', labelsize=10)
         plt.colorbar(im)
         self.logger.experiment.add_figure(tag="Correlation with covariates", figure=fig)
-
+        
         ''' Association between clustering and confounders '''
         pvals = test_confounding(clust, conf)
+        
+        ''' Association between embeddings and confounders '''
+        fpvals, arsqs = test_embedding_confounding(LF, conf)
 
         ''' Summary Table for tensorboard'''
         table = f"""
@@ -226,14 +244,20 @@ class cXVAE(L.LightningModule):
             | DB index    | {DB:.2f} |
             | Adjusted Rand Index   | {ARI:.2f} |
             | Normalized Mutual Info   | {NMI:.2f} |
+            | Adjusted Rand Index (conf) | {ARI_conf:.2f} |
+            | Normalized Mutual Info (conf) | {NMI_conf:.2f} |
             | Reconstruction accuracy X1 - Pearson correlation (mean+-std)   | {np.mean(reconAcc_x1):.2f}+-{np.std(reconAcc_x1):.2f} |
             | Reconstruction accuracy X2 - Pearson correlation (mean+-std)   | {np.mean(reconAcc_x2):.2f}+-{np.std(reconAcc_x2):.2f} |
             | Reconstruction accuracy - Relative error (L2 norm)   | {relativeError:.2f} |                                    
         """
         table = '\n'.join(l.strip() for l in table.splitlines())
         for i in range(conf.shape[1]):
-            table += f"| Association with {labels_onehot[i]}  | {pvals[i]:.2e} |\n"
-        self.logger.experiment.add_text("Results on test set", table,0)
+            table += f"| ANOVA between clustering and {labels[i]}  | {pvals[i]:.2e} |\n"
+        for i in range(conf.shape[1]):
+            table += f"| F test between embedding and {labels[i]}  | {fpvals[i]:.2e} |\n"
+        for i in range(conf.shape[1]):
+            table += f"| Adj. R-sq between embedding and {labels[i]}  | {arsqs[i]:.2e} |\n"
+        self.logger.experiment.add_text("Results on test set", table, 0)
 
         ''' Visualise embedding '''        
         ### conf_list = [conf[:,i] for i in range(conf.shape[1])]   ## There is an option to give multiple labels but I couldn't make it work
