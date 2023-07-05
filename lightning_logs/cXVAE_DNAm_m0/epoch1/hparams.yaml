@@ -1,0 +1,6 @@
+x1_size: 2000
+x2_size: 2000
+ls: 64
+cov_size: 1
+distance: mmd
+beta: 1
