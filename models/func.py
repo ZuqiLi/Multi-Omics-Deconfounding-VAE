@@ -42,7 +42,7 @@ def init_weights(layer, method="rai"):
 Regularisation 
 '''
 
-def kld(mu, log_var, reduction="mean"):
+def kld(mu, log_var, reduction="sum"):
     """
     Kullback–Leibler divergence regularizer
     This is the KL of q(z|x) given that the 
@@ -57,7 +57,7 @@ def kld(mu, log_var, reduction="mean"):
         return kld.sum(dim=0)
 
 
-def mmd(x, y, reduction='mean'):
+def mmd(x, y, reduction='sum'):
     """Maximum Mean Discrepancy regularizer using Gaussian Kernel"""
     def compute_kernel(a, b):
         a_size = a.shape[0]
@@ -78,21 +78,21 @@ def mmd(x, y, reduction='mean'):
         return x_kernel.sum() + y_kernel.sum() - 2*xy_kernel.sum()
 
 
-# def mse(pred, true):
-#     ''' MSE loss for regression '''
-#     loss = torch.nn.MSELoss(reduction="mean")
-#     mse_loss = loss(torch.flatten(pred), true)
-#     return mse_loss
+def mse(pred, true):
+    ''' MSE loss for regression '''
+    loss = torch.nn.MSELoss(reduction="sum")
+    mse_loss = loss(torch.flatten(pred), true)
+    return mse_loss
 
 def bce(pred, true):
     ''' BCE loss for clf '''
-    loss = torch.nn.BCELoss(reduction="mean")
+    loss = torch.nn.BCELoss(reduction="sum")
     bce_loss = loss(pred, true)
     return bce_loss
 
 def crossEntropy(pred, true):
     ''' Crossentropy loss for clf '''
-    loss = torch.nn.CrossEntropyLoss(reduction="mean")
+    loss = torch.nn.CrossEntropyLoss(reduction="sum")
     crossent = loss(pred, true)
     return crossent
 
