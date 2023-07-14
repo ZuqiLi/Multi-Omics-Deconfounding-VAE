@@ -1,7 +1,5 @@
 import os
 import numpy as np
-import pandas as pd
-from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 import torch 
 import pytorch_lightning as L
 from pytorch_lightning.utilities.model_summary import ModelSummary
@@ -9,10 +7,12 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.cXVAE import cXVAE_fusedEmbed
+#sys.path.append("/home/WUR/katz001/PROJECTS/EMC/Multi-view-Deconfounding-VAE")
+from models.XVAE import XVAE
 from Data.preprocess import ConcatDataset, scale
 from models.clustering import *
 from models.func import reconAcc_pearsonCorr, reconAcc_relativeError
+
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
 np.random.seed(1234)
@@ -37,7 +37,6 @@ artificialConf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'
 conf = torch.from_numpy(artificialConf).to(torch.float32)
 print('\n\nShape of confounders:', conf.shape, '\n\n')
 
-
 ''' Split into training and validation sets '''
 n_samples = X1.shape[0]
 indices = np.random.permutation(n_samples)
@@ -48,25 +47,29 @@ X2_train, X2_val, X2_test = scale(X2[train_idx,:]), scale(X2[val_idx,:]), scale(
 conf_train, conf_val, conf_test = conf[train_idx,:], conf[val_idx,:], conf[test_idx,:]
 Y_test = Y[test_idx]
 
+print(X1_test.shape, X2_test.shape, X1[test_idx,:].shape)
+print("\n\n")
+
 ''' Initialize Dataloader '''
 train_loader = data.DataLoader(
-                    ConcatDataset(X1_train, X2_train, conf_train), 
+                    ConcatDataset(X1_train, X2_train), 
                     batch_size=64, 
                     shuffle=True, 
                     drop_last=False, 
                     num_workers=5)
 val_loader = data.DataLoader(
-                    ConcatDataset(X1_val, X2_val, conf_val), 
+                    ConcatDataset(X1_val, X2_val), 
                     batch_size=64, 
                     shuffle=False, 
                     drop_last=False, 
                     num_workers=5)
 test_loader = data.DataLoader(
-                    ConcatDataset(X1_test, X2_test, conf_test, Y_test), 
+                    ConcatDataset(X1_test, X2_test, Y_test), 
                     batch_size=64, 
                     shuffle=False, 
                     drop_last=False, 
                     num_workers=5)
+
 
 '''
 #################################################
@@ -78,49 +81,50 @@ test_loader = data.DataLoader(
 Step 0: settings
 '''
 
-modelname = 'cVAE_modular/cXVAE_fusedEmbed_troubleshoot'
-maxEpoch = 50
+## Name of the folder
+outname = "troubleshoot/sonjaScript_sonjaModel_150epochs"
+maxEpochs = 150
 
-for epoch in [1, maxEpoch]:
-    model = cXVAE_fusedEmbed(input_size=[X1.shape[1], X2.shape[1]],
-                    hidden_ind_size =[200, 200],                ### first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
-                    hidden_fused_size = [200],                  ### next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
-                    ls=50,                                      ### latent size
-                    cov_size=conf.shape[1],                                   
-                    distance='mmd',
-                    lossReduction='sum', 
-                    klAnnealing=False,
-                    beta=1,
-                    dropout=0.2,
-                    init_weights_func="rai")
-    
+for epoch in [1, maxEpochs]:
+    model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
+                hidden_ind_size =[200, 200],                ### first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
+                hidden_fused_size = [200],                  ### next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
+                ls=50,                                      ### latent size
+                distance='mmd',
+                lossReduction='sum', 
+                klAnnealing=False,
+                beta=1,
+                dropout=0.2,
+                init_weights_func="rai")
     print(model)
 
-    logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{modelname}/")
+    # Initialize Trainer and setting parameters
+    logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{outname}")
     trainer = L.Trainer(default_root_dir=os.getcwd(), 
                         accelerator="auto", 
                         devices=1, 
+                        max_epochs=epoch, 
                         log_every_n_steps=10, 
-                        logger=logger, 
-                        max_epochs=epoch,
+                        logger=logger,
                         fast_dev_run=False)
-    trainer.fit(model, train_loader, val_loader)
-    trainer.test(dataloaders=test_loader, ckpt_path='best')
-    os.rename(f"lightning_logs/{modelname}/version_0", f"lightning_logs/{modelname}/epoch{epoch}")
-
+    # Use trainer to fit vae model to dataset
+    # trainer.fit(model, train_loader, val_loader)
+    # # automatically auto-loads the best weights from the previous run
+    # # trainer.test(dataloaders=test_loader)
+    # os.rename(f"lightning_logs/{outname}/version_0", f"lightning_logs/{outname}/epoch{epoch}")
 
 
 
 ##################################################
 ##                Reconstruction               ##
-#################################################
+###############################################
 print("\n\nCompute reconstruction accuracy...\n\n ")
 
-ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{maxEpoch}/checkpoints"
+ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/epoch{maxEpochs}/checkpoints"
 ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
-model = cXVAE_fusedEmbed.load_from_checkpoint(ckpt_file)
+model = XVAE.load_from_checkpoint(ckpt_file)
 
-x1_hat, x2_hat = model.forward(X1_test, X2_test, conf_test)
+x1_hat, x2_hat = model.forward(X1_test, X2_test)
 x1_hat = x1_hat.detach().numpy()
 x2_hat = x2_hat.detach().numpy()
 
@@ -133,8 +137,7 @@ relativeError = reconAcc_relativeError(X1_test, x1_hat,  X2_test, x2_hat)
 
 print(f'Reconstruction accuracy X1 - Pearson correlation (mean+-std)   \t {np.mean(reconAcc_x1):.3f}+-{np.std(reconAcc_x1):.3f}')
 print(f'Reconstruction accuracy X2 - Pearson correlation (mean+-std)   \t {np.mean(reconAcc_x2):.3f}+-{np.std(reconAcc_x2):.3f}')
-print(f'Reconstruction accuracy - Relative error (L2 norm)   \t {relativeError:.3f} \n\n')
-
+print(f'Reconstruction accuracy - Relative error (L2 norm)   \t {relativeError:.3f} ')
 
 
 #############################################################
@@ -146,20 +149,17 @@ print(labels_onehot)
 
 # Because of the variational part the latent space is always a bit different and these values change
 all_corr = []
-for i in range(30):  ## 50
+for i in range(30): 
     res = []
-    for epoch in [1, maxEpoch]:       ## 100
-        ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
+    for epoch in [1, maxEpochs]:       ## 100
+        ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = cXVAE_fusedEmbed.load_from_checkpoint(ckpt_file)
-        z = model.generate_embedding(X1_test, X2_test, conf_test).detach().numpy()
+        model = XVAE.load_from_checkpoint(ckpt_file)
+        z = model.generate_embedding(X1_test, X2_test).detach().numpy()
 
         conf_test = conf_test.detach().clone()
-        #bins = conf[:, 5:15]
-        #digits = np.argmax(bins, axis=1)
-        #conf = np.concatenate((conf[:,:5], digits[:,None], conf[:,15:]), axis=1)
-        corr_conf = [np.abs(np.corrcoef(z.T, conf_test[:,i].T)[:-1,-1]) for i in range(conf_test.shape[1])]
+        corr_conf = [np.abs(np.corrcoef(z.T, conf_test[:,i])[:-1,-1]) for i in range(conf_test.shape[1])]       ### SHOULD BE WORKING?
         res.append(pd.DataFrame(corr_conf, index=labels_onehot))
     ''' 
     Calculate [%] differences of correlation of confounders to each latent feature before (epoch1) and after training (epoch100)
@@ -179,20 +179,22 @@ print("\n\n")
 print(corr_dict)
 
 
-#############################################################
-##        Compute consensus clsutering and metrics         ##
-#############################################################
+
+
+##################################################
+#   Compute consensus clustering and metrics
+##################################################
 print("\n\nCompute clustering...\n\n ")
 
 labels = []
 SSs, DBs = [], []
 n_clust = len(np.unique(Y))
 for i in range(20):
-    ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{maxEpoch}/checkpoints"
+    ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/epoch{maxEpochs}/checkpoints"
     ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
+    model = XVAE.load_from_checkpoint(ckpt_file)
 
-    model = cXVAE_fusedEmbed.load_from_checkpoint(ckpt_file)
-    z = model.generate_embedding(scale(X1), scale(X2), conf).detach().numpy()
+    z = model.generate_embedding(scale(X1), scale(X2)).detach().numpy()
 
     label = kmeans(z, n_clust)
     labels.append(label)
@@ -202,25 +204,20 @@ for i in range(20):
     DBs.append(DB)
 
 con_clust, _, disp = consensus_clustering(labels, n_clust)
-
 print("Dispersion for co-occurrence matrix:", disp)
+
 print("Silhouette score:", np.mean(SSs))
 print("DB index:", np.mean(DBs))
 ARI, NMI = external_metrics(con_clust, Y)
-print("ARI for cancer types:", round(ARI, 3))
-print("NMI for cancer types:", round(NMI, 3))
-ARI_conf, NMI_conf = external_metrics(con_clust, conf[:,0])
-print("ARI for confounder:", round(ARI_conf, 3))
-print("NMI for confounder:", round(NMI_conf, 3))
+print("ARI for cancer types:", ARI)
+print("NMI for cancer types:", NMI)
 print('\n\n')
+ARI_conf, NMI_conf = external_metrics(con_clust, conf[:,0])
+print("ARI for confounder:", ARI_conf)
+print("NMI for confounder:", NMI_conf)
 
 
-
-##################################################
-#                  Save to file                  #
-##################################################
-
-### Save to file
+### Save
 res = {'recon_x1':[np.mean(reconAcc_x1)],
     'recon_x2':[np.mean(reconAcc_x2)],
     'l2_error':[relativeError],
@@ -234,4 +231,4 @@ res = {'recon_x1':[np.mean(reconAcc_x1)],
     'nmi_confoundedCluster':[NMI]
     }
 
-pd.DataFrame(res).to_csv(f"lightning_logs/{modelname}/epoch{maxEpoch}/results_performance.csv")
+pd.DataFrame(res).to_csv(f"lightning_logs/{outname}/epoch{maxEpochs}/results_performance.csv")
