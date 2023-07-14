@@ -13,7 +13,7 @@ def seqBlock(in_f, out_f, *args, **kwargs):
     return nn.Sequential(
         nn.Linear(in_f, out_f),
         nn.Dropout(*args, **kwargs),
-        nn.PReLU(),
+        nn.LeakyReLU(),
         nn.BatchNorm1d(out_f)
     )
 
@@ -25,7 +25,7 @@ class XVAE(L.LightningModule):
                  ls: int, 
                  distance: str, 
                  beta=1,
-                 lossReduction="mean",
+                 lossReduction="sum",
                  klAnnealing=False,
                  dropout=0.2,
                  init_weights_func="rai") -> None:
@@ -61,7 +61,7 @@ class XVAE(L.LightningModule):
             layer.apply(lambda m: init_weights(m, self.init_weights_func))    
             fused_encoder.append(layer)
             fused_encoder.append(nn.Dropout(p=self.dropout))
-            fused_encoder.append(nn.PReLU())
+            fused_encoder.append(nn.LeakyReLU())
             fused_encoder.append(nn.BatchNorm1d(fused_encoder_all[i+1]))      
         self.enc_hidden_fused = nn.Sequential(*fused_encoder)
 
@@ -79,7 +79,7 @@ class XVAE(L.LightningModule):
             layer.apply(lambda m: init_weights(m, self.init_weights_func))    
             decoder_layers.append(layer)
             decoder_layers.append(nn.Dropout(p=self.dropout))
-            decoder_layers.append(nn.PReLU())
+            decoder_layers.append(nn.LeakyReLU())
         self.decoder_fused = nn.Sequential(*decoder_layers)
 
         self.decoder_x1_hidden = nn.Sequential(nn.Linear(decoder_topology[-1], self.input_size[0]),
@@ -251,9 +251,6 @@ class XVAE(L.LightningModule):
 
 
 
-
-
-
 class XVAE_sym(L.LightningModule):
     def __init__(self, 
                  input_size: list[int],
@@ -263,6 +260,7 @@ class XVAE_sym(L.LightningModule):
                  distance: str, 
                  beta=1,
                  lossReduction="mean",
+                 init_weights_func="rai",
                  klAnnealing=False) -> None:
 
         super().__init__()
@@ -276,6 +274,7 @@ class XVAE_sym(L.LightningModule):
         self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
         self.lossReduction = lossReduction
         self.klAnnealing = klAnnealing
+        self.init_weights_func = init_weights_func
         self.save_hyperparameters()
 
         #################################################

@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.adversarial_XVAE_multipleAdvNet_modular import advNet, XVAE, XVAE_adversarial_multinet
+from models.adversarial_XVAE_multipleAdvNet import advNet, XVAE, XVAE_adversarial_multinet
 from Data.preprocess import ConcatDataset, scale
 from models.clustering import *
 from models.func import reconAcc_pearsonCorr, reconAcc_relativeError
@@ -47,20 +47,18 @@ artificialConf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'
 ''' 
 Specify confounders 
 
-1. specify which columns
-2. scale continuous variables
-    - if only 1 continuous variable: transform to matrix with 1 column 
-3. OHE discrete variables
-4. Set not used variables types to `None`:
-    - if no continous confounders: `num_conf_regr` = None 
-    - if no discrete confounders: `num_conf_discrete` = None 
+Dictionary for confounders:
+KEYS: 
+ - varname_CONT   --  if continous confounder (regression)
+ - varname_OHE    --  if discrete confounder (classifciation)
+VALUES: 
+ - which columns of dataframe holds respective variable
 '''
-conf = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform(artificialConf)
-conf = torch.from_numpy(conf).to(torch.float32)
+conf = torch.from_numpy(artificialConf).to(torch.float32)
 print("\n",{conf.shape})
 
 ''' Dirty dic '''
-dic_conf = {"artificialConf_OHE":[0,1,2,3,4,5]}
+dic_conf = {"artificialConf_CONT":[0]}
 
 ''' Split into training and validation sets '''
 n_samples = X1.shape[0]
@@ -233,7 +231,7 @@ all_corr = []
 for i in range(1):  ## 50
     res = []
     for epoch in epochs_ae_w_advNet:       ## 100
-        ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/XVAE_adversarialTrg/epoch{epochs_ae_w_advNet[-1]}/checkpoints"
+        ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/XVAE_adversarialTrg/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
         model = XVAE_adversarial_multinet.load_from_checkpoint(ckpt_file)

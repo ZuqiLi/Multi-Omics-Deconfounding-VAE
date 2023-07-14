@@ -25,7 +25,6 @@ def seqBlock(in_f, out_f, *args, **kwargs):
     )
 
 
-
 class XVAE_adversarial_multinet(L.LightningModule):
     def __init__(self, 
                  PATH_xvae_ckpt,

@@ -56,20 +56,10 @@ Specify confounders
     - if no continous confounders: `num_conf_regr` = None 
     - if no discrete confounders: `num_conf_discrete` = None 
 '''
-##### Real confounders
-# conf = traits[:, :-1] # stage, age, race, gender
-# # scaling of age
-# conf[:,1] = ((conf[:,1] - np.min(conf[:,1])) / (np.max(conf[:,1]) - np.min(conf[:,1]))) 
-# conf_onehot = OneHotEncoder(sparse_output=False, drop="if_binary").fit_transform(conf[:,[3]])
-
-
-#######################################################
-##  CHANGE these vars if one datatype is not used    ##
-#######################################################
 conf = torch.from_numpy(artificialConf).to(torch.float32)     ### Watch out: continous variables should go first
 num_conf_regr = artificialConf.shape[1]         ### None  
 num_conf_clf = None        ### None
-labels_onehot = [f"artificial{i}" for i in range(conf)] 
+labels_onehot = [f"artificial{i}" for i in range(conf.shape[1])] 
 print('\n\n Shape of confounders:', conf.shape[1], "\n\n")
 
 ''' Split into training and validation sets '''
@@ -241,10 +231,10 @@ print(f'Reconstruction accuracy - Relative error (L2 norm)   \t {relativeError:.
 labels_onehot = [f'Confounder{i}' for i in range(1,conf.shape[1]+1)]
 
 all_corr = []
-for i in range(50):  ## 50
+for i in range(30):  ## 50
     res = []
     for epoch in epochs_ae_w_advNet:       ## 100
-        ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/XVAE_adversarialTrg/epoch{epochs_ae_w_advNet[-1]}/checkpoints"
+        ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/XVAE_adversarialTrg/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
         model = XVAE_adversarial_multiclass.load_from_checkpoint(ckpt_file)
@@ -279,7 +269,7 @@ print("\n\nCompute clustering...\n\n ")
 labels = []
 SSs, DBs = [], []
 n_clust = len(np.unique(Y))
-for i in range(50):      ### 20
+for i in range(20):      ### 20
     ckpt_path = f"{os.getcwd()}/lightning_logs/{outname}/XVAE_adversarialTrg/epoch{epochs_ae_w_advNet[-1]}/checkpoints"
     ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
     model = XVAE_adversarial_multiclass.load_from_checkpoint(ckpt_file)
