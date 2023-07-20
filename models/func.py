@@ -109,7 +109,12 @@ def reconAcc_pearsonCorr(x1, x1_hat):
 
 def reconAcc_relativeError(x1, x1_hat, x2, x2_hat):
     ''' Reconstruction accuracy (relative error - L2 norm ratio) '''
-    numerator = np.linalg.norm(x1-x1_hat) +  np.linalg.norm(x2 - x2_hat)
-    denominator = np.linalg.norm(x1) +  np.linalg.norm(x2)
-    relativeError = numerator / denominator
-    return relativeError
+    error_x1 = np.linalg.norm(x1 - x1_hat)
+    error_x2 = np.linalg.norm(x2 - x2_hat)
+    norm_x1 = np.linalg.norm(x1)
+    norm_x2 = np.linalg.norm(x2)
+
+    RE_x1 = error_x1 / norm_x1
+    RE_x2 = error_x2 / norm_x2
+    RE_x1x2 = (error_x1 + error_x2) / (norm_x1 + norm_x2)
+    return RE_x1, RE_x2, RE_x1x2
