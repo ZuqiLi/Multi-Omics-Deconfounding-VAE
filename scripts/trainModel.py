@@ -10,16 +10,18 @@ import torch.utils.data as data
 import sys
 sys.path.append("./")
 #from models.XVAE_corrReg import XVAE_corrReg
-from models.cXVAE import cXVAE
+from models.cXVAE import cXVAE_input
 from models.clustering import *
 from Data.preprocess import *
+from models.func import reconAcc_pearsonCorr, reconAcc_relativeError
+
 
 #os.environ["CUDA_VISIBLE_DEVICES"]=""
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
 np.random.seed(1234)
 torch.manual_seed(1234)
-L.seed_everything(1234)
+L.seed_everything(1234, workers=True)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -33,10 +35,9 @@ X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded.csv'), deli
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
-n_samples = X1.shape[0]
-# Get traits
 Y = traits[:, -1]
-# The rest as confounders  --- TO DO: one hot encode / bin them 
+'''
+# The rest as confounders
 conf = traits[:, :-1] # stage, age, race, gender
 age = conf[:,1].copy()
 # rescale age to [0,1)
@@ -51,6 +52,7 @@ conf_onehot = OneHotEncoder(sparse=False).fit_transform(conf[:,:3])
 conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 # select only gender
 conf = conf[:,[0]]
+'''
 # load artificial confounder
 conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
@@ -60,15 +62,11 @@ print('Shape of confounders:', conf.shape)
 ''' Split into training and validation sets '''
 n_samples = X1.shape[0]
 indices = np.random.permutation(n_samples)
-train_idx, val_idx, test_idx = indices[:1600], indices[1600:2100], indices[2100:]
+train_idx, val_idx = indices[:2000], indices[2000:]
 
-# # we test on the whole dataset for clustering
-# train_idx = np.concatenate((train_idx, test_idx))
-# test_idx = indices
-X1_train, X1_val, X1_test = scale(X1[train_idx,:]), scale(X1[val_idx,:]), scale(X1[test_idx,:])
-X2_train, X2_val, X2_test = scale(X2[train_idx,:]), scale(X2[val_idx,:]), scale(X2[test_idx,:])
-conf_train, conf_val, conf_test = conf[train_idx,:], conf[val_idx,:], conf[test_idx,:]
-Y_test = Y[test_idx]
+X1_train, X1_val = scale(X1[train_idx,:]), scale(X1[val_idx,:])
+X2_train, X2_val = scale(X2[train_idx,:]), scale(X2[val_idx,:])
+conf_train, conf_val = conf[train_idx,:], conf[val_idx,:]
 
 ''' Initialize Dataloader '''
 train_loader = data.DataLoader(
@@ -83,90 +81,123 @@ val_loader = data.DataLoader(
                     shuffle=False, 
                     drop_last=False, 
                     num_workers=5)
-test_loader = data.DataLoader(
-                    ConcatDataset(X1_test, X2_test, conf_test, Y_test), 
-                    batch_size=64, 
-                    shuffle=False, 
-                    drop_last=False, 
-                    num_workers=5)
 
-## Run the model twice (1 epoch and 100 epochs)
-modelname = 'troubleshoot/zuqiScript_zuqiModel_150epochs'
 
-for max_epochs in [1, 150]:
-    model = cXVAE(X1.shape[1], X2.shape[1], ls=50, 
-              cov_size=conf.shape[1], distance='mmd', beta=1)
+#################################################
+##             Training procedure              ##
+#################################################
+modelname = 'cXVAE_test'
+maxEpochs = 150
+'''
+for epoch in [1, maxEpochs]:
+    # Initialize model
+    model = cXVAE_input(input_size = [X1.shape[1], X2.shape[1]],
+                # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
+                hidden_ind_size =[200, 200],
+                # next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
+                hidden_fused_size = [200],
+                # latent size
+                ls=50,
+                cov_size=conf.shape[1],
+                distance='mmd',
+                lossReduction='sum',
+                klAnnealing=False,
+                beta=1,
+                dropout=0.2,
+                init_weights_func="rai")
+    print(model)
+    # Initialize Trainer
     logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{modelname}/")
     trainer = L.Trainer(default_root_dir=os.getcwd(), 
                         accelerator="auto", 
                         devices=1, 
                         log_every_n_steps=10, 
                         logger=logger, 
-                        max_epochs=max_epochs,
-                        fast_dev_run=False)
+                        max_epochs=epoch,
+                        fast_dev_run=False,
+                        deterministic=True)
     trainer.fit(model, train_loader, val_loader)
-    #trainer.test(dataloaders=test_loader, ckpt_path='best')
-    os.rename(f"lightning_logs/{modelname}/version_0", f"lightning_logs/{modelname}/epoch{max_epochs}")
+    os.rename(f"lightning_logs/{modelname}/version_0", f"lightning_logs/{modelname}/epoch{epoch}")
+'''
 
-##########
-### calculate corr coefficient difference
-### Formula:
-### ((first epoch) - (last epoch)).mean() / (first epoch).mean()
-##########
-labels_onehot = ['Confounder']
-#labels_onehot = ['Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Age', 'Race1', 'Race2', 'Race3']
-# Because of the variational part the latent space is always a bit different and these values change
-all_corr = []
-for i in range(30):
-    res = []
-    for epoch in [1, 150]:
+###############################################
+##         Test on the whole dataset         ##
+###############################################
+X1_test = scale(X1)
+X2_test = scale(X2)
+conf_test = conf
+conf = conf.detach().numpy()
+labels = ['Confounder']
+#labels = ['Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Age', 'Race1', 'Race2', 'Race3']
+
+RE_X1s, RE_X2s, RE_X1X2s = [], [], []
+clusts = []
+SSs, DBs = [], []
+n_clust = len(np.unique(Y))
+corr_diff = []
+# Sample multiple times from the latent distribution for stability
+for i in range(50):
+    corr_res = []
+    for epoch in [1, maxEpochs]:
         ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = cXVAE.load_from_checkpoint(ckpt_file)
-        z = model.generate_embedding(X1_test, X2_test, conf_test).detach().numpy()
+        model = cXVAE_input.load_from_checkpoint(ckpt_file)
+        
+        # Loop over dataset and test on batches
+        indices = np.array_split(np.arange(X1_test.shape[0]), 20)
+        z = []
+        X1_hat, X2_hat = [], []
+        for idx in indices:
+            z_batch = model.generate_embedding(X1_test[idx], X2_test[idx], conf_test[idx])
+            z.append(z_batch.detach().numpy())
+            X1_hat_batch, X2_hat_batch = model.forward(X1_test[idx], X2_test[idx], conf_test[idx])
+            X1_hat.append(X1_hat_batch.detach().numpy())
+            X2_hat.append(X2_hat_batch.detach().numpy())
 
-        conf_test = conf_test.detach().clone()
-        #bins = conf[:, 5:15]
-        #digits = np.argmax(bins, axis=1)
-        #conf_test = np.concatenate((conf_test[:,:5], digits[:,None], conf_test[:,15:]), axis=1)
-        corr_conf = [np.abs(np.corrcoef(z.T, conf_test[:,i])[:-1,-1]) for i in range(conf_test.shape[1])]
-        res.append(pd.DataFrame(corr_conf, index=labels_onehot))
-    all_corr.append(list(((res[0].T - res[1].T).mean() / res[0].T.mean())*100))
+        z = np.concatenate(z)
+        X1_hat = np.concatenate(X1_hat)
+        X2_hat = np.concatenate(X2_hat)
 
-# Average over all samplings
-all_corr_unpacked = list(zip(*all_corr))
+        if epoch == maxEpochs:
+            # Compute relative error from the last epoch
+            RE_X1, RE_X2, RE_X1X2 = reconAcc_relativeError(X1_test, X1_hat, X2_test, X2_hat)
+            RE_X1s.append(RE_X1)
+            RE_X2s.append(RE_X2)
+            RE_X1X2s.append(RE_X1X2)
+            # Clustering the latent vectors from the last epoch
+            clust = kmeans(z, n_clust)
+            clusts.append(clust)
+            # Compute clustering metrics
+            SS, DB = internal_metrics(z, clust)
+            SSs.append(SS)
+            DBs.append(DB)
+        
+        # Correlation between latent vectors and the confounder
+        corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
+        corr_res.append(pd.DataFrame(corr_conf, index=labels))
+    # Calculate correlation difference
+    # (corr_first_epoch - corr_last_epoch) / corr_first_epoch
+    corr_diff.append(list(((corr_res[0].T - corr_res[1].T).mean() / corr_res[0].T.mean())*100))
+
+# Average relative errors over all samplings
+print("Relative error (X1):", np.mean(RE_X1s))
+print("Relative error (X2):", np.mean(RE_X2s))
+print("Relative error (X1X2):", np.mean(RE_X1X2s))
+
+# Average correlation differences over all samplings
+corr_diff_unpacked = list(zip(*corr_diff))
 corr_dict = dict()
-for i, label in enumerate(labels_onehot):
-    corr_dict[label] = np.array(all_corr_unpacked[i]).mean()
-print(corr_dict)
-exit()
+for i, label in enumerate(labels):
+    corr_dict[label] = np.array(corr_diff_unpacked[i]).mean()
+print("Corr diff:", corr_dict)
 
-##########
-### Compute consensus clsutering and metrics
-##########
-labels = []
-SSs, DBs = [], []
-n_clust = len(np.unique(Y))
-for i in range(50):
-    ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch150/checkpoints"
-    ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
-
-    model = cXVAE.load_from_checkpoint(ckpt_file)
-    z = model.generate_embedding(scale(X1), scale(X2), conf).detach().numpy()
-
-    label = kmeans(z, n_clust)
-    labels.append(label)
-    
-    SS, DB = internal_metrics(z, label)
-    SSs.append(SS)
-    DBs.append(DB)
-
-con_clust, _, disp = consensus_clustering(labels, n_clust)
-print("Dispersion for co-occurrence matrix:", disp)
-
+# Average clustering metrics over all samplings
 print("Silhouette score:", np.mean(SSs))
 print("DB index:", np.mean(DBs))
+# Compute consensus clustering from all samplings
+con_clust, _, disp = consensus_clustering(clusts, n_clust)
+print("Dispersion for co-occurrence matrix:", disp)
 ARI, NMI = external_metrics(con_clust, Y)
 print("ARI for cancer types:", ARI)
 print("NMI for cancer types:", NMI)
@@ -175,6 +206,20 @@ print("ARI for confounder:", ARI_conf)
 print("NMI for confounder:", NMI_conf)
 
 
+### Save
+res = {'RelErr_X1':[np.mean(RE_X1s)],
+    'RelErr_X2':[np.mean(RE_X2s)],
+    'RelErr_X1X2':[np.mean(RE_X1X2s)],
+    'deconfounding_corrcoef':[list(corr_dict.values())],
+    'CC_dispersion':[disp],
+    'ss':[np.mean(SSs)],
+    'db':[np.mean(DBs)],
+    'ari_trueCluster':[ARI],
+    'nmi_trueCluster':[NMI],
+    'ari_confoundedCluster':[ARI_conf],
+    'nmi_confoundedCluster':[NMI_conf]
+    }
 
+pd.DataFrame(res).to_csv(f"lightning_logs/{modelname}/epoch{maxEpochs}/results_performance.csv", index=False)
 
 
