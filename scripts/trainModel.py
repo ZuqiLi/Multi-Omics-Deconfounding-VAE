@@ -9,14 +9,11 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-#from models.XVAE_corrReg import XVAE_corrReg
-from models.cXVAE import cXVAE_input
+from models.XVAE import XVAE
 from models.clustering import *
 from Data.preprocess import *
-from models.func import reconAcc_pearsonCorr, reconAcc_relativeError
+from models.func import reconAcc_relativeError
 
-
-#os.environ["CUDA_VISIBLE_DEVICES"]=""
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
 np.random.seed(1234)
@@ -70,13 +67,13 @@ conf_train, conf_val = conf[train_idx,:], conf[val_idx,:]
 
 ''' Initialize Dataloader '''
 train_loader = data.DataLoader(
-                    ConcatDataset(X1_train, X2_train, conf_train), 
+                    ConcatDataset(X1_train, X2_train), 
                     batch_size=64, 
                     shuffle=True, 
                     drop_last=False, 
                     num_workers=5)
 val_loader = data.DataLoader(
-                    ConcatDataset(X1_val, X2_val, conf_val), 
+                    ConcatDataset(X1_val, X2_val), 
                     batch_size=64, 
                     shuffle=False, 
                     drop_last=False, 
@@ -86,25 +83,23 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'cXVAE_test'
+modelname = 'XVAE'
 maxEpochs = 150
-'''
+
 for epoch in [1, maxEpochs]:
     # Initialize model
-    model = cXVAE_input(input_size = [X1.shape[1], X2.shape[1]],
+    model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
                 # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
                 hidden_ind_size =[200, 200],
                 # next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
                 hidden_fused_size = [200],
-                # latent size
-                ls=50,
-                cov_size=conf.shape[1],
-                distance='mmd',
-                lossReduction='sum',
-                klAnnealing=False,
-                beta=1,
-                dropout=0.2,
-                init_weights_func="rai")
+                ls=50,                      # latent size
+                distance='mmd',             # variational term: KL divergence or maximum mean discrepancy
+                lossReduction='sum',        # sum or mean reduction for loss terms
+                klAnnealing=False,          # annealing for KL vanishing
+                beta=1,                     # weight for variational term
+                dropout=0.2,                # dropout rate
+                init_weights_func="rai")    # weight initialization
     print(model)
     # Initialize Trainer
     logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{modelname}/")
@@ -118,7 +113,7 @@ for epoch in [1, maxEpochs]:
                         deterministic=True)
     trainer.fit(model, train_loader, val_loader)
     os.rename(f"lightning_logs/{modelname}/version_0", f"lightning_logs/{modelname}/epoch{epoch}")
-'''
+
 
 ###############################################
 ##         Test on the whole dataset         ##
@@ -142,16 +137,16 @@ for i in range(50):
         ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = cXVAE_input.load_from_checkpoint(ckpt_file)
+        model = XVAE.load_from_checkpoint(ckpt_file)
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)
         z = []
         X1_hat, X2_hat = [], []
         for idx in indices:
-            z_batch = model.generate_embedding(X1_test[idx], X2_test[idx], conf_test[idx])
+            z_batch = model.generate_embedding(X1_test[idx], X2_test[idx])
             z.append(z_batch.detach().numpy())
-            X1_hat_batch, X2_hat_batch = model.forward(X1_test[idx], X2_test[idx], conf_test[idx])
+            X1_hat_batch, X2_hat_batch = model.decode(z_batch)
             X1_hat.append(X1_hat_batch.detach().numpy())
             X2_hat.append(X2_hat_batch.detach().numpy())
 
@@ -221,5 +216,4 @@ res = {'RelErr_X1':[np.mean(RE_X1s)],
     }
 
 pd.DataFrame(res).to_csv(f"lightning_logs/{modelname}/epoch{maxEpochs}/results_performance.csv", index=False)
-
 
