@@ -84,9 +84,9 @@ val_loader = data.DataLoader(
 ##             Training procedure              ##
 #################################################
 modelname = 'XVAE'
-maxEpochs = 150
+maxEpochs = 151
 
-for epoch in [1, maxEpochs]:
+for epoch in [1,maxEpochs]:
     # Initialize model
     model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
                 # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
