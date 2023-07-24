@@ -128,12 +128,6 @@ class XVAE_scGAN_multiclass(L.LightningModule):
         self.log('val_combined_loss', combined_loss, on_step = False, on_epoch = True, prog_bar = True)
         return combined_loss
     
-    def test_step(self, batch, batch_idx):
-        ''' Do a final quality check once using the external test set; Add here our other QC metrices; Relative Error, R2, clustering metric '''
-        batch, y = batch[:3], batch[-1]
-        ae_loss, advNet_loss, combined_loss = self.compute_loss_combined(batch)
-        self.log('test_combined_loss', combined_loss , on_step = False, on_epoch = True)
-        return combined_loss
     
     
 
@@ -226,17 +220,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
         self.log('val_advNet_loss', advNet_loss, on_step = False, on_epoch = True, prog_bar = True)
         self.log('val_combined_loss', combined_loss, on_step = False, on_epoch = True, prog_bar = True)
         return combined_loss
-    
-    def test_step(self, batch, batch_idx):
-        ''' Do a final quality check once using the external test set; Add here our other QC metrices; Relative Error, R2, clustering metric '''
-        batch, y = batch[:3], batch[-1]
-        ae_loss, advNet_loss, combined_loss = self.compute_loss_combined(batch)
-        x_hat = self.xvae.forward(*batch[:2])
-        z = self.xvae.generate_embedding(*batch[:2])
-        cov_pred = self.xvae.forward(*batch[:2])
 
-        self.log('test_combined_loss', combined_loss , on_step = False, on_epoch = True)
-        return combined_loss
 
 
 
@@ -335,13 +319,6 @@ class XVAE_adversarial_1batch_multiclass(L.LightningModule):
         self.log('val_combined_loss', combined_loss, on_step = False, on_epoch = True, prog_bar = True)
         return combined_loss
     
-    def test_step(self, batch, batch_idx):
-        ''' Do a final quality check once using the external test set; Add here our other QC metrices; Relative Error, R2, clustering metric '''
-        batch, y = batch[:3], batch[-1]
-        ae_loss, advNet_loss, combined_loss = self.compute_loss_combined(batch)
-        self.log('test_combined_loss', combined_loss , on_step = False, on_epoch = True)
-        return combined_loss
-
 
 
 
@@ -357,7 +334,6 @@ class advNet(L.LightningModule):
         self.num_cov_regr = num_cov_regr
         self.num_cov_clf = num_cov_clf
         self.loss_func_regr = loss_func_regr
-        self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
         self.save_hyperparameters()
 
         ### Load pre-trained XVAE model
@@ -443,17 +419,9 @@ class advNet(L.LightningModule):
         self.log('advNet_val_loss', loss, on_step = False, on_epoch = True)            
         return loss
     
-    def test_step(self, batch, batch_idx):
-        batch, y = batch[:3], batch[-1]
-
-        regr_loss, clf_loss = self.compute_loss(batch)
-        loss = regr_loss + clf_loss  
-
-        y_pred_regr, y_pred_clf = self.forward(batch[0],batch[1])
-        self.log('advNet_test_loss', loss, on_step = False, on_epoch = True)
     
 
-class XVAE_modular(L.LightningModule):
+class XVAE(L.LightningModule):
     def __init__(self, 
                  input_size: list[int],
                  hidden_ind_size: list[int], 
@@ -576,7 +544,7 @@ class XVAE_modular(L.LightningModule):
 
 
     def compute_loss(self, batch):
-        x1, x2, _ = batch
+        x1, x2, __class__ = batch
         mu, log_var = self.encode(x1, x2)
         z = self.sample_z(mu, log_var)
         x1_hat, x2_hat = self.decode(z)
@@ -620,18 +588,6 @@ class XVAE_modular(L.LightningModule):
         loss = recon_loss + reg_loss
         self.log('val_loss', loss, on_step = False, on_epoch = True)
         return loss
-
-
-    def test_step(self, batch, batch_idx):
-        ''' Do a final quality check once using the external test set; Add here our other QC metrices; Relative Error, R2, clustering metric '''
-        batch, y = batch[:3], batch[3]
-        recon_loss, reg_loss, z = self.compute_loss(batch)
-        loss = recon_loss + reg_loss
-        x_hat = self.forward(*batch[:2])
-
-        self.log('test_loss', loss , on_step = False, on_epoch = True)
-        return loss
-
 
 
 
