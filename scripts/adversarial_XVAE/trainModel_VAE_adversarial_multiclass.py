@@ -13,7 +13,7 @@ from models.clustering import *
 from Data.preprocess import *
 from models.func import reconAcc_relativeError
 ### Specify here which model you want to use: XVAE_adversarial_multiclass, XVAE_scGAN_multiclass, XVAE_adversarial_1batch_multiclass
-from models.adversarial_XVAE_multiclass import XVAE, advNet, XVAE_adversarial_multiclass
+from models.adversarial_XVAE_multiclass import XVAE, advNet, XVAE_scGAN_multiclass
 
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
@@ -28,8 +28,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_linear.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -52,7 +52,7 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)             ### Watch out: continous variables should go first
 print('Shape of confounders:', conf.shape)
 
@@ -90,7 +90,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = "adversarialTrg/multiclass"
+modelname = "confounded_linear/XVAE_scGAN_multiclass"
 ls = 50
 
 ## pretrainig epochs
@@ -171,7 +171,7 @@ ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
 for epoch in [1, epochs_ae_w_advNet]:
 
 
-    model_xvae_adv = XVAE_adversarial_multiclass(PATH_xvae_ckpt=ckpt_xvae_file,
+    model_xvae_adv = XVAE_scGAN_multiclass(PATH_xvae_ckpt=ckpt_xvae_file,
                                                 PATH_advNet_ckpt=ckpt_advNet_file,
                                                 lamdba_deconf = 1,
                                                 labels_onehot = labels_onehot)
@@ -214,7 +214,7 @@ for i in range(50):
         ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = XVAE_adversarial_multiclass.load_from_checkpoint(ckpt_file)
+        model = XVAE_scGAN_multiclass.load_from_checkpoint(ckpt_file)
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)

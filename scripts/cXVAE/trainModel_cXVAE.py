@@ -9,7 +9,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.cXVAE import cXVAE_input
+from models.cXVAE import cXVAE_embed
 from models.clustering import *
 from Data.preprocess import *
 from models.func import reconAcc_relativeError
@@ -27,8 +27,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_linear.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -51,7 +51,7 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
 print('Shape of confounders:', conf.shape)
 
@@ -83,12 +83,12 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'cXVAE_input'
+modelname = 'confounded_linear/cXVAE_embed'
 maxEpochs = 150
 
 for epoch in [1, maxEpochs]:
     # Initialize model
-    model = cXVAE_input(input_size = [X1.shape[1], X2.shape[1]],
+    model = cXVAE_embed(input_size = [X1.shape[1], X2.shape[1]],
                 # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
                 hidden_ind_size =[200, 200],
                 # next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
@@ -138,7 +138,7 @@ for i in range(50):
         ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = cXVAE_input.load_from_checkpoint(ckpt_file)
+        model = cXVAE_embed.load_from_checkpoint(ckpt_file)
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)

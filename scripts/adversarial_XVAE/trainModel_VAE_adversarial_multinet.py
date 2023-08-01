@@ -96,7 +96,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = "adversarialTrg/multinet"
+modelname = "XVAE_advTraining_multinet"
 ls = 50
 
 ## pretrainig epochs

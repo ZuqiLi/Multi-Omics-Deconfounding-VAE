@@ -27,8 +27,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_linear.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -51,7 +51,7 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
 print('Shape of confounders:', conf.shape)
 
@@ -83,10 +83,10 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'XVAE'
-maxEpochs = 151
+modelname = 'confounded_linear/XVAE'
+maxEpochs = 150
 
-for epoch in [1,maxEpochs]:
+for epoch in [1, maxEpochs]:
     # Initialize model
     model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
                 # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities

@@ -28,8 +28,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_linear.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -52,7 +52,7 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
 print('Shape of confounders:', conf.shape)
 
@@ -84,7 +84,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'XVAE'
+modelname = 'confounded_linear/XVAE'
 maxEpochs = 150
 
 
@@ -140,19 +140,22 @@ for i in range(50):
 
             Disadvantage?: number of latent features to keep are different for every consensus run 
             '''
-            print(f"\n\n\nDimension latent space - before: {z.shape}")
+            print(f"\nDimension latent space - before: {z.shape}")
+            #cutoff_corr = 0.3
             cutoff_pvalue = 0.05
             for i in range(conf.shape[1]):
                 ## determine correlation of all latFeatures to one confounder variable
-                corr_pval = np.array([abs(pearsonr(z[:,j], conf[:,i])[1]) for j in range(z.shape[1])])
-                tmp = corr_pval < cutoff_pvalue
+                #corr = np.array([abs(pearsonr(z[:,j], conf[:,i])[0]) for j in range(z.shape[1])])
+                #tmp = corr < cutoff_corr
+                corr_pval = np.array([pearsonr(z[:,j], conf[:,i])[1] for j in range(z.shape[1])])
+                tmp = corr_pval > cutoff_pvalue
                 if i == 0:
                     booleanCorr = tmp.copy()
                 else:
                     ## combine boolean of all confounders --> only keep completely uncorrelated features
                     booleanCorr = np.logical_and(booleanCorr, tmp)
             z = z[:,booleanCorr]
-            print(f"Dimension latent space - after: {z.shape}")
+            print(f"Dimension latent space - after: {z.shape}\n")
             ##################################################################################################################
 
             # Clustering the latent vectors from the last epoch
