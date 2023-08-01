@@ -179,13 +179,16 @@ def MI_with_KDE(x, y, n_bins=10, bw=0.1, epsilon=1e-10):
     return MI
 
 
-def mutualInfo(z, c):
+def mutualInfo(z, c, method='kde'):
     '''
     Regularization for mutual information between every latent vector and the confounder
     '''
     MI = []
     for i in range(z.shape[1]):
-        MI.append(MI_with_KDE(z[:,i], torch.flatten(c)))
+        if method == 'kde':
+            MI.append(MI_with_KDE(z[:,i], torch.flatten(c)))
+        if method == 'hist':
+            MI.append(MI_with_hist(z[:,i], torch.flatten(c)))
     MI = torch.stack(MI).sum()
 
     return MI
