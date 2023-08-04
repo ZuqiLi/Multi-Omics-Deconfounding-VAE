@@ -203,7 +203,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
             # Prepare for next epoch
             return combined_loss
         else:             
-            # Freeze that fucker
+            # Freeze the autoencoder
             for param in self.xvae.parameters():
                 param.requires_grad = False
             for param in self.advNet.parameters():
@@ -301,7 +301,7 @@ class XVAE_adversarial_1batch_multiclass(L.LightningModule):
                 return combined_loss
         else:             
             ## Train on all batches
-            # Freeze that fucker
+            # Freeze the autoencoder
             for param in self.xvae.parameters():
                 param.requires_grad = False
             for param in self.advNet_pre.parameters():

@@ -28,8 +28,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_linear.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -52,8 +52,11 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
+conf_type = 'categ'
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
+if conf_type == 'categ':
+    conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
 print('Shape of confounders:', conf.shape)
 
 
@@ -84,7 +87,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'confounded_linear/XVAE'
+modelname = 'confounded_categ/XVAE'
 maxEpochs = 150
 
 
@@ -96,7 +99,6 @@ X2_test = scale(X2)
 conf_test = conf
 conf = conf.detach().numpy()
 labels = ['Confounder']
-#labels = ['Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Age', 'Race1', 'Race2', 'Race3']
 
 RE_X1s, RE_X2s, RE_X1X2s = [], [], []
 clusts = []
@@ -141,14 +143,14 @@ for i in range(50):
             Disadvantage?: number of latent features to keep are different for every consensus run 
             '''
             print(f"\nDimension latent space - before: {z.shape}")
-            #cutoff_corr = 0.3
-            cutoff_pvalue = 0.05
+            cutoff_corr = 0.3
+            #cutoff_pvalue = 0.05
             for i in range(conf.shape[1]):
                 ## determine correlation of all latFeatures to one confounder variable
-                #corr = np.array([abs(pearsonr(z[:,j], conf[:,i])[0]) for j in range(z.shape[1])])
-                #tmp = corr < cutoff_corr
-                corr_pval = np.array([pearsonr(z[:,j], conf[:,i])[1] for j in range(z.shape[1])])
-                tmp = corr_pval > cutoff_pvalue
+                corr = np.array([abs(pearsonr(z[:,j], conf[:,i])[0]) for j in range(z.shape[1])])
+                tmp = corr < cutoff_corr
+                #corr_pval = np.array([pearsonr(z[:,j], conf[:,i])[1] for j in range(z.shape[1])])
+                #tmp = corr_pval > cutoff_pvalue
                 if i == 0:
                     booleanCorr = tmp.copy()
                 else:
@@ -157,17 +159,21 @@ for i in range(50):
             z = z[:,booleanCorr]
             print(f"Dimension latent space - after: {z.shape}\n")
             ##################################################################################################################
-
-            # Clustering the latent vectors from the last epoch
-            clust = kmeans(z, n_clust)
-            clusts.append(clust)
-            # Compute clustering metrics
-            SS, DB = internal_metrics(z, clust)
-            SSs.append(SS)
-            DBs.append(DB)
+            
+            if z.shape[1] != 0: # not all latent vectors are removed
+                # Clustering the latent vectors from the last epoch
+                clust = kmeans(z, n_clust)
+                clusts.append(clust)
+                # Compute clustering metrics
+                SS, DB = internal_metrics(z, clust)
+                SSs.append(SS)
+                DBs.append(DB)
         
         # Correlation between latent vectors and the confounder
-        corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
+        if z.shape[1] != 0: # not all latent vectors are removed
+            corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
+        if conf_type == 'categ':
+            corr_conf = [np.mean(corr_conf)]
         corr_res.append(pd.DataFrame(corr_conf, index=labels))
     # Calculate correlation difference
     # (corr_first_epoch - corr_last_epoch) / corr_first_epoch
@@ -194,7 +200,11 @@ print("Dispersion for co-occurrence matrix:", disp)
 ARI, NMI = external_metrics(con_clust, Y)
 print("ARI for cancer types:", ARI)
 print("NMI for cancer types:", NMI)
-ARI_conf, NMI_conf = external_metrics(con_clust, conf[:,0])
+if conf_type == 'categ':
+    conf = np.argmax(conf, 1)
+else:
+    conf = conf[:,0]
+ARI_conf, NMI_conf = external_metrics(con_clust, conf)
 print("ARI for confounder:", ARI_conf)
 print("NMI for confounder:", NMI_conf)
 

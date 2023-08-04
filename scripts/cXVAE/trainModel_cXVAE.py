@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
 import torch 
 import pytorch_lightning as L
 from pytorch_lightning.utilities.model_summary import ModelSummary
@@ -9,7 +8,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import torch.utils.data as data
 import sys
 sys.path.append("./")
-from models.cXVAE import cXVAE_embed
+from models.cXVAE import cXVAE_fusedEmbed # cXVAE_input, cXVAE_inputEmbed, cXVAE_embed, cXVAE_fusedEmbed
 from models.clustering import *
 from Data.preprocess import *
 from models.func import reconAcc_relativeError
@@ -27,8 +26,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_linear.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -51,10 +50,12 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
+conf_type = 'categ'
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
+if conf_type == 'categ':
+    conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
 print('Shape of confounders:', conf.shape)
-
 
 ''' Split into training and validation sets '''
 n_samples = X1.shape[0]
@@ -83,12 +84,12 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'confounded_linear/cXVAE_embed'
+modelname = 'confounded_categ/cXVAE/cXVAE_fusedEmbed'
 maxEpochs = 150
 
 for epoch in [1, maxEpochs]:
     # Initialize model
-    model = cXVAE_embed(input_size = [X1.shape[1], X2.shape[1]],
+    model = cXVAE_fusedEmbed(input_size = [X1.shape[1], X2.shape[1]],
                 # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
                 hidden_ind_size =[200, 200],
                 # next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
@@ -124,7 +125,6 @@ X2_test = scale(X2)
 conf_test = conf
 conf = conf.detach().numpy()
 labels = ['Confounder']
-#labels = ['Gender', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Age', 'Race1', 'Race2', 'Race3']
 
 RE_X1s, RE_X2s, RE_X1X2s = [], [], []
 clusts = []
@@ -138,7 +138,7 @@ for i in range(50):
         ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = cXVAE_embed.load_from_checkpoint(ckpt_file)
+        model = cXVAE_fusedEmbed.load_from_checkpoint(ckpt_file)
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)
@@ -171,6 +171,8 @@ for i in range(50):
         
         # Correlation between latent vectors and the confounder
         corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
+        if conf_type == 'categ':
+            corr_conf = [np.mean(corr_conf)]
         corr_res.append(pd.DataFrame(corr_conf, index=labels))
     # Calculate correlation difference
     # (corr_first_epoch - corr_last_epoch) / corr_first_epoch
@@ -197,7 +199,11 @@ print("Dispersion for co-occurrence matrix:", disp)
 ARI, NMI = external_metrics(con_clust, Y)
 print("ARI for cancer types:", ARI)
 print("NMI for cancer types:", NMI)
-ARI_conf, NMI_conf = external_metrics(con_clust, conf[:,0])
+if conf_type == 'categ':
+    conf = np.argmax(conf, 1)
+else:
+    conf = conf[:,0]
+ARI_conf, NMI_conf = external_metrics(con_clust, conf)
 print("ARI for confounder:", ARI_conf)
 print("NMI for confounder:", NMI_conf)
 

@@ -83,9 +83,9 @@ def correlation(z, c, nonneg='square'):
     Regularization for Pearson correlation between every latent vector and the confounder
     '''
     z_ = z - torch.mean(z, 0)
-    c_ = c - torch.mean(c)
-    num = torch.matmul(z_.T, c_).flatten()
-    den = torch.sqrt(torch.sum(z_**2, 0)) * torch.sqrt(torch.sum(c_**2))
+    c_ = c - torch.mean(c, 0)
+    num = torch.matmul(z_.T, c_)
+    den = torch.outer(torch.sqrt(torch.sum(z_**2, 0)), torch.sqrt(torch.sum(c_**2, 0)))
     corr = num / (den + 1e-8)
 
     if nonneg == 'square':
@@ -97,7 +97,7 @@ def correlation(z, c, nonneg='square'):
     return corr
 
 
-def MI_with_hist(x, y, n_bins=50):
+def MI_with_hist(x, y, n_bins=10):
     '''
     compute the mutual information between 2 1D tensors of the same shape
     '''
@@ -183,13 +183,14 @@ def mutualInfo(z, c, method='kde'):
     '''
     Regularization for mutual information between every latent vector and the confounder
     '''
-    MI = []
+    MI = torch.zeros(z.shape[1], c.shape[1])
     for i in range(z.shape[1]):
-        if method == 'kde':
-            MI.append(MI_with_KDE(z[:,i], torch.flatten(c)))
-        if method == 'hist':
-            MI.append(MI_with_hist(z[:,i], torch.flatten(c)))
-    MI = torch.stack(MI).sum()
+        for j in range(c.shape[1]):
+            if method == 'kde':
+                MI[i,j] = MI_with_KDE(z[:,i], c[:,j])
+            if method == 'hist':
+                MI[i,j] = MI_with_hist(z[:,i], c[:,j])
+    MI = MI.sum()
 
     return MI
 

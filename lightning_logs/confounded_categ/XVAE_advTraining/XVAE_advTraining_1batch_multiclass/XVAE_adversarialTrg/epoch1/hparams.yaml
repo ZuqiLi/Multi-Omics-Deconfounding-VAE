@@ -1,0 +1,12 @@
+PATH_xvae_ckpt: /usr/local/micapollo01/MIC/DATA/STAFF/zli1/MVDVAE/Multi-view-Deconfounding-VAE/lightning_logs/confounded_categ/XVAE_advTraining_1batch_multiclass/pre_XVAE/epoch5/checkpoints/epoch=4-step=160.ckpt
+PATH_advNet_ckpt: /usr/local/micapollo01/MIC/DATA/STAFF/zli1/MVDVAE/Multi-view-Deconfounding-VAE/lightning_logs/confounded_categ/XVAE_advTraining_1batch_multiclass/pre_advNet/epoch5/checkpoints/epoch=4-step=160.ckpt
+labels_onehot:
+- artificial0
+- artificial1
+- artificial2
+- artificial3
+- artificial4
+- artificial5
+lamdba_deconf: 1
+distance: mmd
+beta: 1

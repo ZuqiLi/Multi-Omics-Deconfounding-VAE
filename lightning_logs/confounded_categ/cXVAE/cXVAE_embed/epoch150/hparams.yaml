@@ -1,0 +1,16 @@
+input_size:
+- 2000
+- 2000
+hidden_ind_size:
+- 200
+- 200
+hidden_fused_size:
+- 200
+ls: 50
+cov_size: 6
+distance: mmd
+beta: 1
+lossReduction: sum
+klAnnealing: false
+dropout: 0.2
+init_weights_func: rai

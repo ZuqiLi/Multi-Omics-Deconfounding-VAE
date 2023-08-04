@@ -25,6 +25,7 @@ class XVAE_corrReg(L.LightningModule):
                  ls: int, 
                  cov_size: int,
                  distance: str, 
+                 corrReg: str,
                  beta=1,
                  lossReduction="sum",
                  klAnnealing=False,
@@ -38,6 +39,7 @@ class XVAE_corrReg(L.LightningModule):
         self.ls = ls                    # latent size
         self.cov_size = cov_size        # number of covariates
         self.distance = distance        # regularisation used
+        self.corrReg = corrReg          # method for the correlation regularization
         self.beta = beta                # weight for distance term in loss function
         self.c = 6                      # number of clusters
         self.test_step_outputs = []     # accumulate latent factors for all samples in every test step
@@ -170,8 +172,16 @@ class XVAE_corrReg(L.LightningModule):
         reg_loss = self.beta * distance
 
         # Regularization for correlation between embedding and confounder
-        #corr_loss = correlation(z, cov, nonneg='square')
-        corr_loss = mutualInfo(z, cov, method='kde')
+        if self.corrReg == 'corrAbs':
+            corr_loss = correlation(z, cov, nonneg='abs')
+        elif self.corrReg == 'corrSq':
+            corr_loss = correlation(z, cov, nonneg='square')
+        elif self.corrReg == 'MIhist':
+            corr_loss = mutualInfo(z, cov, method='hist')
+        elif self.corrReg == 'MIkde':
+            corr_loss = mutualInfo(z, cov, method='kde')
+        else:
+            print(f"The input parameter corrReg({self.corrReg}) is not supported!")
 
         return recon_loss, reg_loss, corr_loss, z
 
