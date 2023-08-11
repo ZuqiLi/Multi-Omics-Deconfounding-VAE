@@ -241,3 +241,34 @@ def reconAcc_relativeError(x1, x1_hat, x2, x2_hat):
     RE_x2 = error_x2 / norm_x2
     RE_x1x2 = (error_x1 + error_x2) / (norm_x1 + norm_x2)
     return RE_x1, RE_x2, RE_x1x2
+
+
+''' 
+Visualise latent space
+'''
+
+def plot_umap_latSpace(z, labels_true, labels_conf, modelname="enter modelname"):
+    reducer = umap.UMAP()
+    embedding = reducer.fit_transform(z)
+    print(embedding.shape)
+
+    fig, (ax1,ax2) = plt.subplots(1,2, figsize=(12,6))
+    ax1.scatter(
+        embedding[:,0],
+        embedding[:,1],
+        c=labels_true,
+        cmap="Set2")
+    ax2.scatter(
+        embedding[:,0],
+        embedding[:,1],
+        c=labels_conf,
+        cmap="Set1")
+    plt.gca().set_aspect('equal', 'datalim')
+    for ax in [ax1, ax2]:
+        ax.set_xlabel("UMAP1")
+        ax.set_ylabel("UMAP2")
+    ax1.set_title("true labels")
+    ax2.set_title("confounder labels")
+    fig.suptitle(modelname, fontsize=15)
+    plt.show()
+    return 
