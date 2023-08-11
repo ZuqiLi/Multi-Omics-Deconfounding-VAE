@@ -26,8 +26,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ2.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ2.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -51,7 +51,7 @@ conf = conf[:,[0]]
 '''
 # load artificial confounder
 conf_type = 'categ'
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ2.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
 if conf_type == 'categ':
     conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
@@ -85,7 +85,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'confounded_categ/XVAE'
+modelname = 'confounded_categ2/XVAE'
 maxEpochs = 150
 
 for epoch in [1, maxEpochs]:

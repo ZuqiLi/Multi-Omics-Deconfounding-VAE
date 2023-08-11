@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import pytorch_lightning as L
 from sklearn.metrics import mean_absolute_error, roc_auc_score
 from scipy.stats import pearsonr
-from models.func import kld, mmd, reconAcc_pearsonCorr, reconAcc_relativeError, crossEntropy, bce, init_weights, mse
+from models.func import kld, mmd, reconAcc_pearsonCorr, reconAcc_relativeError, crossEntropy, nll, bce, init_weights, mse
 from models.clustering import *
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -49,7 +49,7 @@ class XVAE_scGAN_multiclass(L.LightningModule):
                             *self.xvae.enc_hidden_fused)
 
         ### Load pre-trained advNet and freeze weights
-        self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt)
+        self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt, PATH_xvae_ckpt=PATH_xvae_ckpt)
 
 
 
@@ -151,7 +151,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
         self.xvae = XVAE.load_from_checkpoint(PATH_xvae_ckpt)
 
         ### Load pre-trained advNet and freeze weights
-        self.advNet = advNet.load_from_checkpoint(PATH_advNet_ckpt)
+        self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt, PATH_xvae_ckpt=PATH_xvae_ckpt)
 
     def configure_optimizers(self):
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0)
@@ -168,7 +168,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
         ''' 
         Adversarial net loss
         ''' 
-        regr_loss, clf_loss = self.advNet.compute_loss(batch)
+        regr_loss, clf_loss = self.advNet_pre.compute_loss(batch)
         advNet_loss = regr_loss + clf_loss 
 
         '''
@@ -184,7 +184,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
         ''' 
         Adversarial net loss
         ''' 
-        regr_loss, clf_loss = self.advNet.compute_loss(batch)
+        regr_loss, clf_loss = self.advNet_pre.compute_loss(batch)
         advNet_loss = regr_loss + clf_loss 
         return advNet_loss
 
@@ -193,7 +193,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
         if self.current_epoch % 2 == 0:
             for param in self.xvae.parameters():
                 param.requires_grad = True
-            for param in self.advNet.parameters():
+            for param in self.advNet_pre.parameters():
                 param.requires_grad = False        
             # Calculate loss
             ae_loss, advNet_loss, combined_loss = self.compute_loss_combined(batch)
@@ -206,7 +206,7 @@ class XVAE_adversarial_multiclass(L.LightningModule):
             # Freeze the autoencoder
             for param in self.xvae.parameters():
                 param.requires_grad = False
-            for param in self.advNet.parameters():
+            for param in self.advNet_pre.parameters():
                 param.requires_grad = True        
             advNet_loss = self.compute_loss_advNet(batch)
             # save metric
@@ -244,7 +244,7 @@ class XVAE_adversarial_1batch_multiclass(L.LightningModule):
         self.xvae = XVAE.load_from_checkpoint(PATH_xvae_ckpt)
 
         ### Load pre-trained advNet and freeze weights
-        self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt)
+        self.advNet_pre = advNet.load_from_checkpoint(PATH_advNet_ckpt, PATH_xvae_ckpt=PATH_xvae_ckpt)
 
     def configure_optimizers(self):
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, amsgrad=False, weight_decay=0)
@@ -352,8 +352,9 @@ class advNet(L.LightningModule):
 
         if self.num_cov_clf:
             if self.num_cov_clf > 1:       
-                self.adv_net_clf = nn.Sequential(nn.Linear(10,  self.num_cov_clf),
-                                                nn.Softmax())     
+                self.adv_net_clf = nn.Sequential(nn.Linear(10,  self.num_cov_clf))
+                #self.adv_net_clf = nn.Sequential(nn.Linear(10,  self.num_cov_clf),
+                #                                nn.Softmax())
                 self.loss_func_clf = "crossEntropy"
             else: 
                 self.adv_net_clf = nn.Sequential(nn.Linear(10,  self.num_cov_clf),
@@ -400,8 +401,10 @@ class advNet(L.LightningModule):
             cov_clf = cov_clf.to(torch.float32)
             if self.loss_func_clf == "crossEntropy":
                 clfloss = crossEntropy(y_pred_clf, cov_clf)    
+                #cov_clf = torch.argmax(cov_clf, dim=1) # input for NLL loss should be 1D
+                #clfloss = nll(y_pred_clf, cov_clf)    
             else:
-                clfloss = bce(y_pred_clf, cov_clf)              
+                clfloss = bce(y_pred_clf, cov_clf)
         else: clfloss = 0        
         return regrloss, clfloss
 
@@ -419,7 +422,7 @@ class advNet(L.LightningModule):
         self.log('advNet_val_loss', loss, on_step = False, on_epoch = True)            
         return loss
     
-    
+  
 
 class XVAE(L.LightningModule):
     def __init__(self, 

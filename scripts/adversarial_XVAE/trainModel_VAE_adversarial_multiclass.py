@@ -12,7 +12,7 @@ from models.clustering import *
 from Data.preprocess import *
 from models.func import reconAcc_relativeError
 ### Specify here which model you want to use: XVAE_adversarial_multiclass, XVAE_scGAN_multiclass, XVAE_adversarial_1batch_multiclass
-from models.adversarial_XVAE_multiclass import XVAE, advNet, XVAE_scGAN_multiclass
+from models.adversarial_XVAE_multiclass import XVAE, advNet, XVAE_adversarial_multiclass
 
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
@@ -27,8 +27,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ2.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ2.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -52,7 +52,7 @@ conf = conf[:,[0]]
 '''
 # load artificial confounder
 conf_type = 'categ'
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ2.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)             ### Watch out: continous variables should go first
 if conf_type == 'categ':
     conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
@@ -92,7 +92,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = "confounded_categ/XVAE_advTraining_scGAN_multiclass"
+modelname = "confounded_categ2/XVAE_advTraining/XVAE_advTraining_multiclass"
 ls = 50
 
 ## pretrainig epochs
@@ -156,8 +156,7 @@ trainer_advNet = L.Trainer(default_root_dir=os.getcwd(),
                     fast_dev_run=False,
                     deterministic=True)
 trainer_advNet.fit(model_pre_advNet, train_loader, val_loader)
-os.rename(f"lightning_logs/{modelname}/pre_advNet/version_0", f"lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_ae}")
-
+os.rename(f"lightning_logs/{modelname}/pre_advNet/version_0", f"lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}")
 
 
 ''' 
@@ -169,11 +168,9 @@ ckpt_advNet_path = f"{os.getcwd()}/lightning_logs/{modelname}/pre_advNet/epoch{e
 ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
 
 
-
 for epoch in [1, epochs_ae_w_advNet]:
 
-
-    model_xvae_adv = XVAE_scGAN_multiclass(PATH_xvae_ckpt=ckpt_xvae_file,
+    model_xvae_adv = XVAE_adversarial_multiclass(PATH_xvae_ckpt=ckpt_xvae_file,
                                                 PATH_advNet_ckpt=ckpt_advNet_file,
                                                 lamdba_deconf = 1,
                                                 labels_onehot = labels_onehot)
@@ -193,7 +190,6 @@ for epoch in [1, epochs_ae_w_advNet]:
 
 
 
-
 ###############################################
 ##         Test on the whole dataset         ##
 ###############################################
@@ -208,14 +204,52 @@ clusts = []
 SSs, DBs = [], []
 n_clust = len(np.unique(Y))
 corr_diff = []
+
+## advNet performance for predicting the confounder
+from sklearn.metrics import roc_auc_score
+scores = np.zeros((50, conf_test.shape[1]))
+for i in range(50):         
+    ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epochs_ae_w_advNet}/checkpoints"
+    ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
+    ckpt_xvae_path = f"{os.getcwd()}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}/checkpoints"
+    ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
+    ckpt_advNet_path = f"{os.getcwd()}/lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}/checkpoints"
+    ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
+
+    model = XVAE_adversarial_multiclass.load_from_checkpoint(ckpt_file,
+            PATH_xvae_ckpt=ckpt_xvae_file, PATH_advNet_ckpt=ckpt_advNet_file)
+    
+    # Loop over dataset and test on batches
+    indices = np.array_split(np.arange(X1_test.shape[0]), 20)
+    y_pred_all, y_true_all = [], []
+    for idx in indices:
+        _, y_pred = model.advNet_pre.forward(X1_test[idx], X2_test[idx])
+        y_pred = [y_pred[j].detach().numpy() for j in range(y_pred.shape[0])]
+        y_pred_all.append(y_pred)
+
+    y_pred_all = np.concatenate(y_pred_all)
+
+    for j in range(conf_test.shape[1]):
+        scores[i,j] = roc_auc_score(conf_test[:,j], y_pred_all[:,j])
+
+scores = np.mean(scores, 0)
+for i in range(conf_test.shape[1]):
+    print(f"Conf{i+1}", "\t", round(scores[i], 2))
+
+## Compute reconstruction and clustering metrics
 # Sample multiple times from the latent distribution for stability
 for i in range(50):         
     corr_res = []
     for epoch in [1, epochs_ae_w_advNet]:
         ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
+        ckpt_xvae_path = f"{os.getcwd()}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}/checkpoints"
+        ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
+        ckpt_advNet_path = f"{os.getcwd()}/lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}/checkpoints"
+        ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
 
-        model = XVAE_scGAN_multiclass.load_from_checkpoint(ckpt_file)
+        model = XVAE_adversarial_multiclass.load_from_checkpoint(ckpt_file,
+                PATH_xvae_ckpt=ckpt_xvae_file, PATH_advNet_ckpt=ckpt_advNet_file)
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)

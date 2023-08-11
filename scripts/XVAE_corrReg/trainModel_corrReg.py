@@ -14,7 +14,7 @@ from Data.preprocess import *
 from models.func import reconAcc_relativeError
 
 
-os.environ["CUDA_VISIBLE_DEVICES"]=""
+#os.environ["CUDA_VISIBLE_DEVICES"]=""
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
 np.random.seed(1234)
@@ -28,8 +28,8 @@ PATH_data = "Data"
 
 
 ''' Load data '''
-X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ.csv'), delimiter=",")
-X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ.csv'), delimiter=",")
+X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_categ2.csv'), delimiter=",")
+X2 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_DNAm_confounded_categ2.csv'), delimiter=",")
 X1 = torch.from_numpy(X1).to(torch.float32)
 X2 = torch.from_numpy(X2).to(torch.float32)
 traits = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_clinic2.csv'), delimiter=",", skiprows=1, usecols=(1,2,3,4,5))
@@ -53,7 +53,7 @@ conf = conf[:,[0]]
 '''
 # load artificial confounder
 conf_type = 'linear'
-conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ.csv'))[:,None]
+conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_categ2.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
 if conf_type == 'categ':
     conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
@@ -87,7 +87,7 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = 'confounded_categ/XVAE_corrReg/XVAE_corrReg_MIhist'
+modelname = 'confounded_categ2/XVAE_corrReg/XVAE_corrReg_corrSq'
 maxEpochs = 150
 
 for epoch in [1, maxEpochs]:
@@ -100,7 +100,7 @@ for epoch in [1, maxEpochs]:
                 ls=50,                      # latent size
                 cov_size=conf.shape[1],     # number of covariates
                 distance='mmd',             # variational term: KL divergence or maximum mean discrepancy
-                corrReg='MIhist',           # correlation regularization: corrAbs, corrSq, MIhist, MIkde
+                corrReg='corrSq',           # correlation regularization: corrAbs, corrSq, MIhist, MIkde
                 lossReduction='sum',        # sum or mean reduction for loss terms
                 klAnnealing=False,          # annealing for KL vanishing
                 beta=1,                     # weight for variational term

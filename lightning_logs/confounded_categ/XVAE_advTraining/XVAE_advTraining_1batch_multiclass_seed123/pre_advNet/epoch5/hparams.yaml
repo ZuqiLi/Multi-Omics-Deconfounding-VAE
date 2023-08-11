@@ -1,0 +1,5 @@
+PATH_xvae_ckpt: /usr/local/micapollo01/MIC/DATA/STAFF/zli1/MVDVAE/Multi-view-Deconfounding-VAE/lightning_logs/confounded_categ/XVAE_advTraining_1batch_multiclass_seed123/pre_XVAE/epoch5/checkpoints/epoch=4-step=160.ckpt
+ls: 50
+num_cov_regr: null
+num_cov_clf: 6
+loss_func_regr: mse

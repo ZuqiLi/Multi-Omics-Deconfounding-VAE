@@ -213,6 +213,12 @@ def crossEntropy(pred, true):
     crossent = loss(pred, true)
     return crossent
 
+def nll(pred, true):
+    ''' Negative log likelihood loss for clf '''
+    loss = torch.nn.NLLLoss(reduction="sum")
+    nll_loss = loss(pred, true)
+    return nll_loss
+
 ''' 
 QC scores
 '''
