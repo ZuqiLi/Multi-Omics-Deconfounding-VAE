@@ -83,7 +83,7 @@ def correlation(z, c, nonneg='square'):
     Regularization for Pearson correlation between every latent vector and the confounder
     '''
     z_ = z - torch.mean(z, 0)
-    c_ = c - torch.mean(c, 0)
+    c_ = c - torch.mean(c.float(), 0)
     num = torch.matmul(z_.T, c_)
     den = torch.outer(torch.sqrt(torch.sum(z_**2, 0)), torch.sqrt(torch.sum(c_**2, 0)))
     corr = num / (den + 1e-8)
