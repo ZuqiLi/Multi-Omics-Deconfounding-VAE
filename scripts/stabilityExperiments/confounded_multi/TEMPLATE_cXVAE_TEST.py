@@ -116,8 +116,8 @@ for epoch in [1, maxEpochs]:
                 init_weights_func="rai")    # weight initialization
     print(model)
     # Initialize Trainer
-    logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"lightning_logs/{modelname}/")
-    trainer = L.Trainer(default_root_dir=os.getcwd(), 
+    logger = TensorBoardLogger(save_dir=PATH, name=f"lightning_logs/{modelname}/")
+    trainer = L.Trainer(default_root_dir=PATH, 
                         accelerator="auto", 
                         devices=1, 
                         log_every_n_steps=10, 
@@ -126,7 +126,7 @@ for epoch in [1, maxEpochs]:
                         fast_dev_run=False,
                         deterministic=True)
     trainer.fit(model, train_loader, val_loader)
-    os.rename(f"lightning_logs/{modelname}/version_0", f"lightning_logs/{modelname}/epoch{epoch}")
+    os.rename(f"{PATH}/lightning_logs/{modelname}/version_0", f"{PATH}/lightning_logs/{modelname}/epoch{epoch}")
 
 
 ###############################################
@@ -148,7 +148,7 @@ corr_diff = []
 for i in range(3):
     corr_res = []
     for epoch in [1, maxEpochs]:
-        ckpt_path = f"{os.getcwd()}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
+        ckpt_path = f"{PATH}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
         model = ARG_MODELTYPE.load_from_checkpoint(ckpt_file, map_location=torch.device('cpu'))
@@ -247,5 +247,5 @@ res = {'RelErr_X1':[np.mean(RE_X1s)],
     'nmi_confoundedCluster':[NMI_conf]
     }
 
-pd.DataFrame(res).to_csv(f"lightning_logs/{modelname}/epoch{maxEpochs}/results_performance.csv", index=False)
+pd.DataFrame(res).to_csv(f"{PATH}/lightning_logs/{modelname}/epoch{maxEpochs}/results_performance.csv", index=False)
 
