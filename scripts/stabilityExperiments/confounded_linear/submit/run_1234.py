@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import OneHotEncoder
 import torch 
 import pytorch_lightning as L
 from pytorch_lightning.utilities.model_summary import ModelSummary
@@ -9,12 +10,11 @@ import torch.utils.data as data
 import sys
 PATH = "/trinity/home/skatz/PROJECTS/Multi-view-Deconfounding-VAE"
 sys.path.append(PATH)
+from models.XVAE import XVAE
 from models.clustering import *
 from Data.preprocess import *
 from models.func import reconAcc_relativeError
-### Specify here which model you want to use: XVAE_adversarial_multiclass, XVAE_scGAN_multiclass, XVAE_adversarial_1batch_multiclass
-from models.adversarial_XVAE_multiclass import XVAE, advNet, XVAE_scGAN_multiclass 
-
+from scipy.stats import pearsonr
 
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
@@ -25,9 +25,10 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 ''' Set PATHs '''
-#PATH_data = "Data"
+##PATH_data = "Data"
 ### For EMC cluster
 PATH_data = "/data/scratch/skatz/PROJECTS/multiview_VAE/data"
+
 
 ''' Load data '''
 X1 = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_mRNA2_confounded_linear.csv'), delimiter=",")
@@ -56,16 +57,16 @@ conf = conf[:,[0]]
 # load artificial confounder
 conf_type = 'linear'
 conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
-conf = torch.from_numpy(conf).to(torch.float32)             ### Watch out: continous variables should go first
-if conf_type == 'categ':
-    conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
+conf = torch.from_numpy(conf).to(torch.float32)
+n_confs = conf.shape[1] if conf.ndim > 1 else 1
+if conf_type == 'conti':
+    conf = conf[:, None]
+elif conf_type == 'categ':
+    conf = torch.nn.functional.one_hot(conf.to(torch.int64))
+elif conf_type == 'multi':
+    conf_categ = torch.nn.functional.one_hot(conf[:,-1].to(torch.int64))
+    conf = torch.cat((conf[:,:-1], conf_categ), dim=1)
 print('Shape of confounders:', conf.shape)
-
-# specify confounders for advNet training
-num_conf_regr = conf.shape[1]         ### None  
-num_conf_clf = None            ###conf.shape[1]      
-labels_onehot = [f"artificial{i}" for i in range(conf.shape[1])] 
-print('\n\n Shape of confounders:', conf.shape[1], "\n\n")
 
 
 ''' Split into training and validation sets '''
@@ -79,13 +80,13 @@ conf_train, conf_val = conf[train_idx,:], conf[val_idx,:]
 
 ''' Initialize Dataloader '''
 train_loader = data.DataLoader(
-                    ConcatDataset(X1_train, X2_train, conf_train), 
+                    ConcatDataset(X1_train, X2_train), 
                     batch_size=64, 
                     shuffle=True, 
                     drop_last=False, 
                     num_workers=5)
 val_loader = data.DataLoader(
-                    ConcatDataset(X1_val, X2_val, conf_val), 
+                    ConcatDataset(X1_val, X2_val), 
                     batch_size=64, 
                     shuffle=False, 
                     drop_last=False, 
@@ -95,103 +96,9 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
-modelname = "confounded_linear/stability/XVAE_scGAN_multiclass/run_1234" #"confounded_categ2/XVAE_advTraining/XVAE_advTraining_multiclass"
-ls = 50
-
-## pretrainig epochs
-epochs_preTrg_ae = 5        #10
-epochs_preTrg_advNet = 5    #10
-
-## adversarial training epochs
-epochs_ae_w_advNet = 3
-
-
-'''
-Step 1: pre-train XVAE 
-'''
-model_pre_XVAE = XVAE(input_size = [X1.shape[1], X2.shape[1]],
-                    # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
-                    hidden_ind_size =[200, 200],
-                    # next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
-                    hidden_fused_size = [200],                                   
-                    ls=ls,                                     
-                    distance='mmd',
-                    lossReduction='sum', 
-                    klAnnealing=False,
-                    beta=1,
-                    dropout=0.2,
-                    init_weights_func="rai")
-print(model_pre_XVAE)
-
-# Initialize Trainer
-logger_xvae = TensorBoardLogger(save_dir=PATH, name=f"lightning_logs/{modelname}/pre_XVAE")
-trainer_xvae = L.Trainer(default_root_dir=PATH, 
-                    accelerator="auto", 
-                    devices=1, 
-                    log_every_n_steps=10, 
-                    logger=logger_xvae, 
-                    max_epochs=epochs_preTrg_ae,
-                    fast_dev_run=False,
-                    deterministic=True)
-trainer_xvae.fit(model_pre_XVAE, train_loader, val_loader)
-os.rename(f"{PATH}/lightning_logs/{modelname}/pre_XVAE/version_0", f"{PATH}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}")
-
-
-''' 
-Step 2: pre-train adv net 
-'''
-ckpt_xvae_path = f"{PATH}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}/checkpoints"
-ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
-model_pre_advNet = advNet(PATH_xvae_ckpt=ckpt_xvae_file,
-                          ls=ls, 
-                          num_cov_regr=num_conf_regr,
-                          num_cov_clf=num_conf_clf)
-print("\n\n", model_pre_advNet)
-
-# Initialize Trainer
-logger_advNet = TensorBoardLogger(save_dir=PATH, name=f"lightning_logs/{modelname}/pre_advNet")
-trainer_advNet = L.Trainer(default_root_dir=PATH, 
-                    accelerator="auto", 
-                    devices=1, 
-                    log_every_n_steps=10, 
-                    logger=logger_advNet, 
-                    max_epochs=epochs_preTrg_advNet,
-                    fast_dev_run=False,
-                    deterministic=True)
-trainer_advNet.fit(model_pre_advNet, train_loader, val_loader)
-os.rename(f"{PATH}/lightning_logs/{modelname}/pre_advNet/version_0", f"{PATH}/lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}")
-
-
-''' 
-Step 3: train XVAE with adversarial loss in ping pong fashion
-'''
-ckpt_xvae_path = f"{PATH}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}/checkpoints"
-ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
-ckpt_advNet_path = f"{PATH}/lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}/checkpoints"
-ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
-
-
-for epoch in [1, epochs_ae_w_advNet]:
-
-    model_xvae_adv = XVAE_scGAN_multiclass(PATH_xvae_ckpt=ckpt_xvae_file,
-                                                PATH_advNet_ckpt=ckpt_advNet_file,
-                                                lamdba_deconf = 1,
-                                                labels_onehot = labels_onehot)
-    print("\n\n", model_xvae_adv)
-
-    logger_xvae_adv = TensorBoardLogger(save_dir=PATH, name=f"lightning_logs/{modelname}/XVAE_adversarialTrg")
-    trainer_xvae_adv  = L.Trainer(default_root_dir=PATH, 
-                        accelerator="auto", 
-                        devices=1, 
-                        log_every_n_steps=10, 
-                        logger=logger_xvae_adv, 
-                        max_epochs=epoch,
-                        fast_dev_run=False,
-                        deterministic=True) #
-    trainer_xvae_adv.fit(model_xvae_adv, train_loader, val_loader)
-    os.rename(f"{PATH}/lightning_logs/{modelname}/XVAE_adversarialTrg/version_0", f"{PATH}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epoch}")
-
-
+PATH_model =  "/data/scratch/skatz/PROJECTS/multiview_VAE/"
+modelname = 'confounded_linear/stability/cutoff_corr_05/run_1234'
+maxEpochs = 150
 
 ###############################################
 ##         Test on the whole dataset         ##
@@ -200,69 +107,31 @@ X1_test = scale(X1)
 X2_test = scale(X2)
 conf_test = conf
 conf = conf.detach().numpy()
-labels = ['Confounder']
+labels = ['Confounder'+str(i) for i in range(n_confs)]
 
 RE_X1s, RE_X2s, RE_X1X2s = [], [], []
 clusts = []
 SSs, DBs = [], []
 n_clust = len(np.unique(Y))
 corr_diff = []
-
-if conf_type == 'categ':
-    ## advNet performance for predicting the confounder
-    from sklearn.metrics import roc_auc_score
-    scores = np.zeros((50, conf_test.shape[1]))
-    for i in range(50):         
-        ckpt_path = f"{PATH}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epochs_ae_w_advNet}/checkpoints"
-        ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
-        ckpt_xvae_path = f"{PATH}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}/checkpoints"
-        ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
-        ckpt_advNet_path = f"{PATH}/lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}/checkpoints"
-        ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
-
-        model = XVAE_scGAN_multiclass.load_from_checkpoint(ckpt_file,
-                PATH_xvae_ckpt=ckpt_xvae_file, PATH_advNet_ckpt=ckpt_advNet_file, map_location=torch.device("cpu"))
-
-        # Loop over dataset and test on batches
-        indices = np.array_split(np.arange(X1_test.shape[0]), 20)
-        y_pred_all, y_true_all = [], []
-        for idx in indices:
-            y_pred, _ = model.advNet_pre.forward(X1_test[idx], X2_test[idx])
-            y_pred = [y_pred[j].detach().numpy() for j in range(y_pred.shape[0])]
-            y_pred_all.append(y_pred)
-
-        y_pred_all = np.concatenate(y_pred_all)
-
-        for j in range(conf_test.shape[1]):
-            scores[i,j] = roc_auc_score(conf_test[:,j], y_pred_all[:,j])
-
-    scores = np.mean(scores, 0)
-    for i in range(conf_test.shape[1]):
-        print(f"Conf{i+1}", "\t", round(scores[i], 2))
-
-## Compute reconstruction and clustering metrics
 # Sample multiple times from the latent distribution for stability
-for i in range(50):         
+###########################################
+for i in range(50): 
     corr_res = []
-    for epoch in [1, epochs_ae_w_advNet]:
-        ckpt_path = f"{PATH}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epoch}/checkpoints"
+    for epoch in [1, maxEpochs]:
+        ckpt_path = f"{PATH_model}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
-        ckpt_xvae_path = f"{PATH}/lightning_logs/{modelname}/pre_XVAE/epoch{epochs_preTrg_ae}/checkpoints"
-        ckpt_xvae_file = f"{ckpt_xvae_path}/{os.listdir(ckpt_xvae_path)[0]}"
-        ckpt_advNet_path = f"{PATH}/lightning_logs/{modelname}/pre_advNet/epoch{epochs_preTrg_advNet}/checkpoints"
-        ckpt_advNet_file = f"{ckpt_advNet_path}/{os.listdir(ckpt_advNet_path)[0]}"
 
-        model = XVAE_scGAN_multiclass.load_from_checkpoint(ckpt_file,
-                PATH_xvae_ckpt=ckpt_xvae_file, PATH_advNet_ckpt=ckpt_advNet_file, map_location=torch.device("cpu"))   #### addition so it works with CUDS as well
+        model = XVAE.load_from_checkpoint(ckpt_file, map_location=torch.device('cpu'))
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)
         z = []
         X1_hat, X2_hat = [], []
         for idx in indices:
-            z_batch = model.xvae.generate_embedding(X1_test[idx], X2_test[idx])
+            z_batch = model.generate_embedding(X1_test[idx], X2_test[idx])
             z.append(z_batch.detach().numpy())
-            X1_hat_batch, X2_hat_batch = model.xvae.decode(z_batch)
+            X1_hat_batch, X2_hat_batch = model.decode(z_batch)
             X1_hat.append(X1_hat_batch.detach().numpy())
             X2_hat.append(X2_hat_batch.detach().numpy())
 
@@ -270,28 +139,36 @@ for i in range(50):
         X1_hat = np.concatenate(X1_hat)
         X2_hat = np.concatenate(X2_hat)
 
-        if epoch == epochs_ae_w_advNet:
+        if epoch == maxEpochs:
             # Compute relative error from the last epoch
             RE_X1, RE_X2, RE_X1X2 = reconAcc_relativeError(X1_test, X1_hat, X2_test, X2_hat)
             RE_X1s.append(RE_X1)
             RE_X2s.append(RE_X2)
             RE_X1X2s.append(RE_X1X2)
-            # Clustering the latent vectors from the last epoch
-            clust = kmeans(z, n_clust)
-            clusts.append(clust)
-            # Compute clustering metrics
-            SS, DB = internal_metrics(z, clust)
-            SSs.append(SS)
-            DBs.append(DB)
+
+            if z.shape[1] != 0: # not all latent vectors are removed
+                # Clustering the latent vectors from the last epoch
+                clust = kmeans(z, n_clust)
+                clusts.append(clust)
+                # Compute clustering metrics
+                SS, DB = internal_metrics(z, clust)
+                SSs.append(SS)
+                DBs.append(DB)
         
         # Correlation between latent vectors and the confounder
-        corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
+        if z.shape[1] != 0: # not all latent vectors are removed
+            corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
         if conf_type == 'categ':
-            corr_conf = [np.mean(corr_conf)]
+            # take the mean of one-hot variables of the categorical confounder
+            corr_conf = [np.mean(corr_conf, axis=0)]
+        elif conf_type == 'multi':
+            # take the mean of one-hot variables of the categorical confounder
+            corr_conf_categ = np.mean(corr_conf[(n_confs-1):], axis=0)
+            corr_conf = corr_conf[:(n_confs-1)] + [corr_conf_categ]
         corr_res.append(pd.DataFrame(corr_conf, index=labels))
     # Calculate correlation difference
     # (corr_first_epoch - corr_last_epoch) / corr_first_epoch
-    corr_diff.append(list(((corr_res[0].T - corr_res[1].T).mean() / corr_res[0].T.mean())*100))
+    corr_diff.append(list(((corr_res[0].T.mean() - corr_res[1].T.mean()) / corr_res[0].T.mean())*100))
 
 # Average relative errors over all samplings
 print("Relative error (X1):", np.mean(RE_X1s))
@@ -311,14 +188,21 @@ print("DB index:", np.mean(DBs))
 # Compute consensus clustering from all samplings
 con_clust, _, disp = consensus_clustering(clusts, n_clust)
 print("Dispersion for co-occurrence matrix:", disp)
+# Compute ARI and NMI for cancer types
 ARI, NMI = external_metrics(con_clust, Y)
 print("ARI for cancer types:", ARI)
 print("NMI for cancer types:", NMI)
+# Compute ARI and NMI for each confounder
 if conf_type == 'categ':
-    conf = np.argmax(conf, 1)
-else:
-    conf = conf[:,0]
-ARI_conf, NMI_conf = external_metrics(con_clust, conf)
+    conf = np.argmax(conf, 1)[:,None]
+elif conf_type == 'multi':
+    conf_categ = np.argmax(conf[:,(n_confs-1):], 1)
+    conf = np.concatenate((conf[:,:(n_confs-1)], conf_categ[:,None]), axis=1)
+ARI_conf, NMI_conf = [], []
+for c in conf.T:
+    ARI_c, NMI_c = external_metrics(con_clust, c)
+    ARI_conf.append(ARI_c)
+    NMI_conf.append(NMI_c)
 print("ARI for confounder:", ARI_conf)
 print("NMI for confounder:", NMI_conf)
 
@@ -337,5 +221,5 @@ res = {'RelErr_X1':[np.mean(RE_X1s)],
     'nmi_confoundedCluster':[NMI_conf]
     }
 
-pd.DataFrame(res).to_csv(f"{PATH}/lightning_logs/{modelname}/XVAE_adversarialTrg/epoch{epochs_ae_w_advNet}/results_performance.csv", index=False)
+pd.DataFrame(res).to_csv(f"{PATH_model}/lightning_logs/{modelname}/epoch{maxEpochs}/results_performance_vanillaXVAE.csv", index=False)
 

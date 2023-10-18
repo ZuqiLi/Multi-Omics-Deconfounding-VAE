@@ -16,13 +16,6 @@ from Data.preprocess import *
 from models.func import reconAcc_relativeError
 from scipy.stats import pearsonr
 
-if "cutoff_corr_05" == "cutoff_corr_05":
-    cutoff_corr = 0.5
-if "cutoff_corr_05" == "cutoff_corr_03":
-    cutoff_corr = 0.3
-if "cutoff_corr_05" == "cutoff_pvalue":
-    cutoff_pvalue = 0.05
-
 
 ''' Set seeds for replicability  -Ensure that all operations are deterministic on GPU (if used) for reproducibility '''
 np.random.seed(77628)
@@ -32,7 +25,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 ''' Set PATHs '''
-## PATH_data = "Data"
+##PATH_data = "Data"
 ### For EMC cluster
 PATH_data = "/data/scratch/skatz/PROJECTS/multiview_VAE/data"
 
@@ -62,11 +55,17 @@ conf = np.concatenate((conf[:,[3]], conf_onehot), axis=1)
 conf = conf[:,[0]]
 '''
 # load artificial confounder
-conf_type = 'linear'    ### linear, continuous, categ
+conf_type = 'linear'
 conf = np.loadtxt(os.path.join(PATH_data, "TCGA",'TCGA_confounder_linear.csv'))[:,None]
 conf = torch.from_numpy(conf).to(torch.float32)
-if conf_type == 'categ':
-    conf = torch.nn.functional.one_hot(conf[:,0].to(torch.int64))
+n_confs = conf.shape[1] if conf.ndim > 1 else 1
+if conf_type == 'conti':
+    conf = conf[:, None]
+elif conf_type == 'categ':
+    conf = torch.nn.functional.one_hot(conf.to(torch.int64))
+elif conf_type == 'multi':
+    conf_categ = torch.nn.functional.one_hot(conf[:,-1].to(torch.int64))
+    conf = torch.cat((conf[:,:-1], conf_categ), dim=1)
 print('Shape of confounders:', conf.shape)
 
 
@@ -97,40 +96,9 @@ val_loader = data.DataLoader(
 #################################################
 ##             Training procedure              ##
 #################################################
+PATH_model =  "/data/scratch/skatz/PROJECTS/multiview_VAE/"
 modelname = 'confounded_linear/stability/cutoff_corr_05/run_77628'
-#modelname = 'XVAE'
 maxEpochs = 150
-
-
-for epoch in [1, maxEpochs]:
-    # Initialize model
-    model = XVAE(input_size = [X1.shape[1], X2.shape[1]],
-                # first hidden layer: individual encoding of X1 and X2; [layersizeX1, layersizeX2]; length: number of input modalities
-                hidden_ind_size =[200, 200],
-                # next hidden layer(s): densely connected layers of fused X1 & X2; [layer1, layer2, ...]; length: number of hidden layers
-                hidden_fused_size = [200],
-                ls=50,                      # latent size
-                distance='mmd',             # variational term: KL divergence or maximum mean discrepancy
-                lossReduction='sum',        # sum or mean reduction for loss terms
-                klAnnealing=False,          # annealing for KL vanishing
-                beta=1,                     # weight for variational term
-                dropout=0.2,                # dropout rate
-                init_weights_func="rai")    # weight initialization
-    print(model)
-    # Initialize Trainer
-    logger = TensorBoardLogger(save_dir=PATH, name=f"lightning_logs/{modelname}/")
-    trainer = L.Trainer(default_root_dir=PATH, 
-                        accelerator="auto", 
-                        devices=1, 
-                        log_every_n_steps=10, 
-                        logger=logger, 
-                        max_epochs=epoch,
-                        fast_dev_run=False,
-                        deterministic=True)
-    trainer.fit(model, train_loader, val_loader)
-    os.rename(f"{PATH}/lightning_logs/{modelname}/version_0", f"{PATH}/lightning_logs/{modelname}/epoch{epoch}")
-
-
 
 ###############################################
 ##         Test on the whole dataset         ##
@@ -139,7 +107,7 @@ X1_test = scale(X1)
 X2_test = scale(X2)
 conf_test = conf
 conf = conf.detach().numpy()
-labels = ['Confounder']
+labels = ['Confounder'+str(i) for i in range(n_confs)]
 
 RE_X1s, RE_X2s, RE_X1X2s = [], [], []
 clusts = []
@@ -147,13 +115,14 @@ SSs, DBs = [], []
 n_clust = len(np.unique(Y))
 corr_diff = []
 # Sample multiple times from the latent distribution for stability
+###########################################
 for i in range(50): 
     corr_res = []
     for epoch in [1, maxEpochs]:
-        ckpt_path = f"{PATH}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
+        ckpt_path = f"{PATH_model}/lightning_logs/{modelname}/epoch{epoch}/checkpoints"
         ckpt_file = f"{ckpt_path}/{os.listdir(ckpt_path)[0]}"
 
-        model = XVAE.load_from_checkpoint(ckpt_file)
+        model = XVAE.load_from_checkpoint(ckpt_file, map_location=torch.device('cpu'))
         
         # Loop over dataset and test on batches
         indices = np.array_split(np.arange(X1_test.shape[0]), 20)
@@ -177,34 +146,6 @@ for i in range(50):
             RE_X2s.append(RE_X2)
             RE_X1X2s.append(RE_X1X2)
 
-            ##################################################################################################################
-            ''' 
-            Deconfounding strategy: Remove highly correlated latent features 
-
-            Disadvantage?: number of latent features to keep are different for every consensus run 
-            '''
-            print(f"\nDimension latent space - before: {z.shape}")
-                       
-            for i in range(conf.shape[1]):
-                if "cutoff_corr_05" == "cutoff_corr_05":
-                    corr = np.array([abs(pearsonr(z[:,j], conf[:,i])[0]) for j in range(z.shape[1])])
-                    tmp = corr < cutoff_corr
-                elif "cutoff_corr_05" == "cutoff_corr_03":
-                    corr = np.array([abs(pearsonr(z[:,j], conf[:,i])[0]) for j in range(z.shape[1])])
-                    tmp = corr < cutoff_corr
-                else:
-                    corr_pval = np.array([pearsonr(z[:,j], conf[:,i])[1] for j in range(z.shape[1])])
-                    tmp = corr_pval > cutoff_pvalue                    
-                
-                if i == 0:
-                    booleanCorr = tmp.copy()
-                else:
-                    ## combine boolean of all confounders --> only keep completely uncorrelated features
-                    booleanCorr = np.logical_and(booleanCorr, tmp)
-            z = z[:,booleanCorr]
-            print(f"Dimension latent space - after: {z.shape}\n")
-            ##################################################################################################################
-            
             if z.shape[1] != 0: # not all latent vectors are removed
                 # Clustering the latent vectors from the last epoch
                 clust = kmeans(z, n_clust)
@@ -218,11 +159,16 @@ for i in range(50):
         if z.shape[1] != 0: # not all latent vectors are removed
             corr_conf = [np.abs(np.corrcoef(z.T, conf[:,i])[:-1,-1]) for i in range(conf.shape[1])]
         if conf_type == 'categ':
-            corr_conf = [np.mean(corr_conf)]
+            # take the mean of one-hot variables of the categorical confounder
+            corr_conf = [np.mean(corr_conf, axis=0)]
+        elif conf_type == 'multi':
+            # take the mean of one-hot variables of the categorical confounder
+            corr_conf_categ = np.mean(corr_conf[(n_confs-1):], axis=0)
+            corr_conf = corr_conf[:(n_confs-1)] + [corr_conf_categ]
         corr_res.append(pd.DataFrame(corr_conf, index=labels))
     # Calculate correlation difference
     # (corr_first_epoch - corr_last_epoch) / corr_first_epoch
-    corr_diff.append(list(((corr_res[0].T - corr_res[1].T).mean() / corr_res[0].T.mean())*100))
+    corr_diff.append(list(((corr_res[0].T.mean() - corr_res[1].T.mean()) / corr_res[0].T.mean())*100))
 
 # Average relative errors over all samplings
 print("Relative error (X1):", np.mean(RE_X1s))
@@ -242,14 +188,21 @@ print("DB index:", np.mean(DBs))
 # Compute consensus clustering from all samplings
 con_clust, _, disp = consensus_clustering(clusts, n_clust)
 print("Dispersion for co-occurrence matrix:", disp)
+# Compute ARI and NMI for cancer types
 ARI, NMI = external_metrics(con_clust, Y)
 print("ARI for cancer types:", ARI)
 print("NMI for cancer types:", NMI)
+# Compute ARI and NMI for each confounder
 if conf_type == 'categ':
-    conf = np.argmax(conf, 1)
-else:
-    conf = conf[:,0]
-ARI_conf, NMI_conf = external_metrics(con_clust, conf)
+    conf = np.argmax(conf, 1)[:,None]
+elif conf_type == 'multi':
+    conf_categ = np.argmax(conf[:,(n_confs-1):], 1)
+    conf = np.concatenate((conf[:,:(n_confs-1)], conf_categ[:,None]), axis=1)
+ARI_conf, NMI_conf = [], []
+for c in conf.T:
+    ARI_c, NMI_c = external_metrics(con_clust, c)
+    ARI_conf.append(ARI_c)
+    NMI_conf.append(NMI_c)
 print("ARI for confounder:", ARI_conf)
 print("NMI for confounder:", NMI_conf)
 
@@ -268,5 +221,5 @@ res = {'RelErr_X1':[np.mean(RE_X1s)],
     'nmi_confoundedCluster':[NMI_conf]
     }
 
-pd.DataFrame(res).to_csv(f"{PATH}/lightning_logs/{modelname}/epoch{maxEpochs}/results_performance_removeLatFeatures_pvalueCutoff.csv", index=False)
+pd.DataFrame(res).to_csv(f"{PATH_model}/lightning_logs/{modelname}/epoch{maxEpochs}/results_performance_vanillaXVAE.csv", index=False)
 

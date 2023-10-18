@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --ntasks=1
 #SBATCH --mem=14G
-#SBATCH -p short
+#SBATCH -p express
 #SBATCH --gres=gpu:1
 #SBATCH -t 1:00:00
 #SBATCH -o log_cluster/out_%j.log
