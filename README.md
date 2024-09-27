@@ -1,6 +1,6 @@
 ## Project overview
 
-- Aim: develop a Multi-view deconfounding VAE (multi-view data integration + confounder correction)
+- Aim: develop a Multi-omics deconfounding VAE (multi-omics data integration + confounder correction)
 - Data: 
     - Rotterdam study
         - 500 individuals
