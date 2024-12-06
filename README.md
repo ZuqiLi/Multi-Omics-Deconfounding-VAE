@@ -106,7 +106,7 @@ print(logging)
 ```
 
 ## References
-> [1] Simidjievski N, Bodnar C, Tariq I, Scherer P, Andres Terre H, Shams Z, Jamnik M and Liò P (2019) Variational Autoencoders for Cancer Data Integration: Design Principles and Computational Practice. *Frontiers in Genetics*, 10:1205. doi: 10.3389/fgene.2019.01205
+> [1] Simidjievski N, Bodnar C, Tariq I, Scherer P, Andres Terre H, Shams Z, Jamnik M and Liò P (2019) Variational Autoencoders for Cancer Data Integration: Design Principles and Computational Practice. *Frontiers in Genetics*, 10:1205. doi: 10.3389/fgene.2019.01205 \
 > [2] Zuqi Li, Sonja Katz, Edoardo Saccenti, David W Fardo, Peter Claes, Vitor A P Martins dos Santos, Kristel Van Steen, Gennady V Roshchupkin, Novel multi-omics deconfounding variational autoencoders can obtain meaningful disease subtyping, *Briefings in Bioinformatics*, Volume 25, Issue 6, November 2024, bbae512, doi: 10.1093/bib/bbae512
 
  
