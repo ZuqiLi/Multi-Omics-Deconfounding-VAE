@@ -39,9 +39,9 @@ source activate env_multiviewVAE
 - **Adversarial Training**
     1. XVAE with one adversarial network and multiclass predicition: `adversarial_XVAE_multiclass`
         - `XVAE_adversarial_multiclass`: inspired by Dincer et al. [3]; training over all batches
-        - `XVAE_adversarial_1batch_multiclass`: original by Dincer et al. [3]
+        - `XVAE_adversarial_1batch_multiclass`: original by Dincer et al. [3] \
 ![m_btaa796f3](https://github.com/user-attachments/assets/a287b681-757b-4289-bc11-cbe6ce79522c)
-        - `XVAE_scGAN_multiclass`: inspired by Bahrami et al. [4]
+        - `XVAE_scGAN_multiclass`: inspired by Bahrami et al. [4] \
 ![m_btaa976f1](https://github.com/user-attachments/assets/be639762-6dcf-41be-8767-0bc217735527)
 
     2. XVAE with multiple adversarial network (one for each confounder): `adversarial_XVAE_multipleAdvNet`
@@ -143,6 +143,6 @@ print(logging)
 > [2] Zuqi Li, Sonja Katz, Edoardo Saccenti, David W Fardo, Peter Claes, Vitor A P Martins dos Santos, Kristel Van Steen, Gennady V Roshchupkin, Novel multi-omics deconfounding variational autoencoders can obtain meaningful disease subtyping, *Briefings in Bioinformatics*, Volume 25, Issue 6, November 2024, bbae512, doi: 10.1093/bib/bbae512 \
 > [3] Ayse B Dincer, Joseph D Janizek, Su-In Lee, Adversarial deconfounding autoencoder for learning robust gene expression embeddings, Bioinformatics, Volume 36, Issue Supplement_2, December 2020, Pages i573–i582, doi: 10.1093/bioinformatics/btaa796 \
 > [4] Mojtaba Bahrami, Malosree Maitra, Corina Nagy, Gustavo Turecki, Hamid R Rabiee, Yue Li, Deep feature extraction of single-cell transcriptomes by generative adversarial network, Bioinformatics, Volume 37, Issue 10, May 2021, Pages 1345–1351, doi: 10.1093/bioinformatics/btaa976 \
-> [5] Xianjing Liu, Bo Li, Esther E. Bron, Wiro J. Niessen, Eppo B. Wolvius, and Gennady V. Roshchupkin. "Projection-wise disentangling for fair and interpretable representation learning: Application to 3d facial shape analysis." In Medical Image Computing and Computer Assisted Intervention–MICCAI 2021: 24th International Conference, Strasbourg, France, September 27–October 1, 2021, Proceedings, Part V 24, pp. 814-823. Springer International Publishing, 2021. doi: 10.1007/978-3-030-87240-3_78 \
+> [5] Xianjing Liu, Bo Li, Esther E. Bron, Wiro J. Niessen, Eppo B. Wolvius, and Gennady V. Roshchupkin. "Projection-wise disentangling for fair and interpretable representation learning: Application to 3d facial shape analysis." In Medical Image Computing and Computer Assisted Intervention–MICCAI 2021: 24th International Conference, Strasbourg, France, September 27–October 1, 2021, Proceedings, Part V 24, pp. 814-823. Springer International Publishing, 2021. doi: 10.1007/978-3-030-87240-3_78
 
  
