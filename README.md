@@ -47,20 +47,19 @@ source activate env_multiviewVAE
     2. XVAE with multiple adversarial network (one for each confounder): `adversarial_XVAE_multipleAdvNet`
  
 - **Regularization to loss function**
-    1. `XVAE_corrReg`
+    1. `XVAE_corrReg`: inspired by Liu et al. [5]
     2. Possibile regularization functions
        1. 'corrAbs': absolute Pearson correlation
        2. 'corrSq': squared Pearson correlation
        3. 'MIhist': mutual information implemented with histogram
        4. 'MIkde': mutual information implemented with KDE
  
-- **removal of latent features**
+- **Removal of latent features**
     1. that are correlated with confounders based on Pearson correlation
     2. that are statistically associated with confounders based on P-value
 
 ## Tutorial
 To use our MODVAE models, please download/clone the whole repository from Github to your local. \
-&nbsp;
 For the best-performing model, cXVAE, we've created a wrapper file `cXVAE_wrapper.py` for easy usage. It can be run via the following command on terminal:
 ```
 python  cXVAE_wrapper.py  pathname  filename_view1  filename_view2  filename_label  conf_type  filename_conf
@@ -143,6 +142,7 @@ print(logging)
 > [1] Simidjievski N, Bodnar C, Tariq I, Scherer P, Andres Terre H, Shams Z, Jamnik M and Liò P (2019) Variational Autoencoders for Cancer Data Integration: Design Principles and Computational Practice. *Frontiers in Genetics*, 10:1205. doi: 10.3389/fgene.2019.01205 \
 > [2] Zuqi Li, Sonja Katz, Edoardo Saccenti, David W Fardo, Peter Claes, Vitor A P Martins dos Santos, Kristel Van Steen, Gennady V Roshchupkin, Novel multi-omics deconfounding variational autoencoders can obtain meaningful disease subtyping, *Briefings in Bioinformatics*, Volume 25, Issue 6, November 2024, bbae512, doi: 10.1093/bib/bbae512 \
 > [3] Ayse B Dincer, Joseph D Janizek, Su-In Lee, Adversarial deconfounding autoencoder for learning robust gene expression embeddings, Bioinformatics, Volume 36, Issue Supplement_2, December 2020, Pages i573–i582, doi: 10.1093/bioinformatics/btaa796 \
-> [4] Mojtaba Bahrami, Malosree Maitra, Corina Nagy, Gustavo Turecki, Hamid R Rabiee, Yue Li, Deep feature extraction of single-cell transcriptomes by generative adversarial network, Bioinformatics, Volume 37, Issue 10, May 2021, Pages 1345–1351, doi: 10.1093/bioinformatics/btaa976
+> [4] Mojtaba Bahrami, Malosree Maitra, Corina Nagy, Gustavo Turecki, Hamid R Rabiee, Yue Li, Deep feature extraction of single-cell transcriptomes by generative adversarial network, Bioinformatics, Volume 37, Issue 10, May 2021, Pages 1345–1351, doi: 10.1093/bioinformatics/btaa976 \
+> [5] Xianjing Liu, Bo Li, Esther E. Bron, Wiro J. Niessen, Eppo B. Wolvius, and Gennady V. Roshchupkin. "Projection-wise disentangling for fair and interpretable representation learning: Application to 3d facial shape analysis." In Medical Image Computing and Computer Assisted Intervention–MICCAI 2021: 24th International Conference, Strasbourg, France, September 27–October 1, 2021, Proceedings, Part V 24, pp. 814-823. Springer International Publishing, 2021. doi: 10.1007/978-3-030-87240-3_78 \
 
  
