@@ -15,7 +15,7 @@ For better reproducibility, it's recommended to refer to the following hardware 
 
 The required packages can be installed with the conda environment file in this repository:
 ```
-## cd Multi-view-Deconfounding-VAE
+## cd Multi-Omics-Deconfounding-VAE
 conda env create -f environment.yml
 source activate env_multiviewVAE
 ```
@@ -62,6 +62,7 @@ source activate env_multiviewVAE
 To use our MODVAE models, please download/clone the whole repository from Github to your local. \
 For the best-performing model, cXVAE, we've created a wrapper file `cXVAE_wrapper.py` for easy usage. It can be run via the following command on terminal:
 ```
+## cd Multi-Omics-Deconfounding-VAE
 python  cXVAE_wrapper.py  pathname  filename_view1  filename_view2  filename_label  conf_type  filename_conf
 ```
 ### Parameters:
@@ -69,38 +70,34 @@ python  cXVAE_wrapper.py  pathname  filename_view1  filename_view2  filename_lab
 - `filename_view1`: The filename of the first data view. It must be a comma-separated (csv) file with $n$ rows (samples) and $p$ columns (features), without rownames or colnames.
 - `filename_view2`: The filename of the second data view. It must be a comma-separated (csv) file with $n$ rows (samples) and $q$ columns (features), without rownames or colnames.
 - `filename_label`: The filename of the labels. It must be a single-column file with $n$ rows (samples) and integer values, without rownames or colnames.
-- `conf_type`: The confounder type, which is a string out of 'conti' for continuous variable, 'categ' for categorical variable, and 'multi' for multiple variables.
-- `filename_conf`: The filename of the confounders. It must be a comma-separated (csv) file with $n$ rows (samples) and $p$ columns (confounders), without rownames or colnames. For `conf_type` of 'conti' and 'categ', it is a single-column file. For `conf_type` of 'multi', it is a multi-column file.
+- `conf_type`: The confounder type, which is a string out of `conti` for continuous variable, `categ` for categorical variable, and `multi` for multiple variables.
+- `filename_conf`: The filename of the confounders. It must be a comma-separated (csv) file with $n$ rows (samples) and $p$ columns (confounders), without rownames or colnames. For `conf_type` of `conti` and `categ`, it is a single-column file. For `conf_type` of `multi`, it is a multi-column file.
 ### Output:
 - The training and validation process is stored in the folder `lightning_logs/cXVAE`, which can be inspected and visualized on TensorBoard.
 - Multiple metrics on the test set are stored in the file `lightning_logs/cXVAE/version_0/results_performance.csv`, including the reconstruction error, dispersion score of the consensus clustering, Silhouette score, DB index, adjusted Rand index with true labels, normalized mutual information with true labels, adjusted Rand index with confounders, normalized mutual information with confounders. More details about these metrics can be found in our publication [2].
+### Example
+Here is an example of how to run `cXVAE_wrapper.py` on TCGA data with simulated confounders. Example datasets can be downloaded from https://drive.google.com/drive/folders/1vg_bg5hXDLRNkmAtIELrj3WsK1k8EjQU?usp=sharing. They are currently not available on GitHub due to the large file size. The required files are:
+
+- `TCGA_mRNA_confounded.csv`: The first data view, with 2000 gene expression features for 2547 cancer patients.
+- `TCGA_DNAm_confounded.csv`: The second data view, with 2000 DNA methylation features for 2547 cancer patients.
+- `TCGA_confounder.csv`: The confounder data, simulated to be a categorical variable for 2547 cancer patients.
+- `TCGA_cancerTypes.csv`: the label data, with 6 different cancer types for 2547 cancer patients.
+
+To run the example, place these 4 files in the folder `Multi-Omics-Deconfounding-VAE` and run:
+```
+## cd Multi-Omics-Deconfounding-VAE
+python  cXVAE_wrapper.py  path/to/Multi-Omics-Deconfounding-VAE/  TCGA_mRNA_confounded.csv  TCGA_DNAm_confounded.csv  TCGA_cancerTypes.csv  categ  TCGA_confounder.csv
+```
 
 &nbsp;
-For the other models, 
-  
-## Example
-Here is an example of how to run INMTD with simulated data. Functions and example datasets of the simulation can be found in the `Simulation` folder.
-### Simulation
-```
-from simulation import generate_data
+For the other models, users can run them with the scripts in the folder `scripts`, as follows:
 
+- Vanilla XVAE: `XVAE/trainModel.py`
+- cXVAE: `cXVAE/trainModel_cXVAE.py`
+- XVAE with adversarial training: `adversarial_XVAE/trainModel_VAE_adversarial_multiclass.py` and `adversarial_XVAE/trainModel_VAE_adversarial_multinet.py`
+- XVAE with regularized loss function: `XVAE_corrReg/trainModel_corrReg.py`
+- XVAE with removal of latent features: `XVAE/trainModel_removeLatFeatures.py`
 
-p1, p2, p3, p4 = 1000, 250, 80, 20
-r1, r2, r3, r4 = 5, 10, 4, 2
-
-R12, R13, clust1, clust2, clust3, clust4 = generate_data([p1, p2, p3, p4], [r1, r2, r3, r4])
-```
-The `generate_data` function in `simulation.py` takes 2 parameters as input. The first parameter is a list containing the numbers of dimensions of the 2 datasets to be simulated, namely `R12` and `R13`. The second parameter is another list containing the ranks of the embedding matrices composing `R12` and `R13`. It returns the 2D matrix `R12`, the 3D tensor `R13`, the true clustering on the dimension of `p1`, the true clustering on the dimension of `p2`, the true clustering on the dimension of `p3`, and the true clustering on the dimension of `p4`.
-
-### INMTD pipeline
-```
-from INMTD import INMTD
-import numpy as np
-
-
-embedding, logging = INMTD(R12, R13, r1, r2, r3, r4)
-print(logging)
-```
 
 ## References
 > [1] Simidjievski N, Bodnar C, Tariq I, Scherer P, Andres Terre H, Shams Z, Jamnik M and Liò P (2019) Variational Autoencoders for Cancer Data Integration: Design Principles and Computational Practice. *Frontiers in Genetics*, 10:1205. doi: 10.3389/fgene.2019.01205 \
