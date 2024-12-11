@@ -90,7 +90,8 @@ python  cXVAE_wrapper.py  path/to/Multi-Omics-Deconfounding-VAE/  TCGA_mRNA_conf
 ```
 
 &nbsp;
-For the other models, users can run them with the scripts in the folder `scripts`, as follows:
+
+\* For the other models, users can run them with the scripts in the folder `scripts`, as follows:
 
 - Vanilla XVAE: `XVAE/trainModel.py`
 - cXVAE: `cXVAE/trainModel_cXVAE.py`
