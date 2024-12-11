@@ -3,7 +3,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 np.random.seed(1234)
 
-path = '/usr/local/micapollo01/MIC/DATA/STAFF/zli1/MVDVAE/TCGA_toydata/'
+path = '/Multi-Omics-Deconfounding-VAE/DATA/TCGA_toydata/'
 with open(path + 'TCGA_mRNAs.csv') as f:
     geneids = f.readline().strip().split(',')
 print(len(geneids))
